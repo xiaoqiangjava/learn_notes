@@ -1,0 +1,405 @@
+											小强日常积累
+一. Tomcat启动时报错内存溢出解决办法
+	在eclipse中window->preferences->server->runtime environments选择tomcat服务器，然后单击edit按钮，然后在jre后面单
+	击Installed JREs，在弹出的对话框中选择自己的jdk版本，再单击edit，再弹出的对话框中的default vm arguments中输入: 
+	-Xms512M -Xmx1024M -XX:MaxPermSize=512M即可，然后单击finish。
+	
+二. Eclipse启动时默认的jdk设置问题
+	在eclipse安装目录中有eclipse.ini文件, 该文件记录了eclipse启动时的初始化数据, 包括jvm和内存大小, 可以在该文件中加入:
+	-vm C:\Program Files\Java\jdk1.8.0_131\bin\javaw.exe jdk的安装路径改变默认的jdk.
+	
+三. Java项目的编译和运行
+	Java项目分为编译器和运行期, 编译器用到的包都在build path中指定, 即build path中指定的jar包或者项目作用在编译器, 
+	Deployment Assembly中指定的deploy path作用在项目运行期, 如果一个web项目中引入了java项目, 编译器需要在build path
+	中引入相应的java项目, 而项目运行期需要将这两个项目以jar包的形式引入到web项目中,即Deployment Assembly中指定的
+	deploy path指向对应项目的jar包.不然启动web项目会包class not find.
+四. Java Compiler中jdk的版本问题
+	Java Compiler是java编辑器的版本, 当项目中引入的jdk的版本和Java Compiler中指定的jdk的版本不一致时, 会报错,但是一般不影响
+	项目的运行, 有时候项目启动会报错.一个web项目中, tomcat对应的jdk的版本和Java Compiler, 项目中引入的jdk的版本可以相同也可以
+	不同, 但最好保证三者一样,项目肯定启动正常, 可以通过修改该项目里面的.setting文件夹下的org.eclipse.wst.common.project.facet.core.xml
+	文件来修改facet对应的jdk版本号.
+五. Apache服务器和Nginx服务器类似
+	一个本地项目必须部署(Deployment)到服务器上才能被外部访问, Tomcat就是用来把本地项目部署到Tomcat中让外部可以访问, 而
+	Apache是一个代理服务器, 用来存放项目中的静态资源, Apache安装目录中, httpd.conf配置文件可以配置静态资源信息以及代理服
+	务器访问路径, 该文件中主要有以下几个注意点:
+	1> Listen 80表示监听80端口, ServerName localhost:80表示本地服务; 
+	2> DocumentRoot "E:\ecuwap\ecuwapv2\ecu_wap_service\WebRoot\resource"是项目中静态资源的路径; 
+	3> <Directory "E:\ecuwap\ecuwapv2\ecu_wap_service\WebRoot\resource"></Directory>中 也需要指定项目中静态资源的路径; 当访问
+	/时自动代理到静态资源所在的目录.
+	下面两句话指定代理访问路径, 当访问http://135.140.39.124时代理到http://135.140.39.124:8080, 其中主机地址可以是localhost或
+	127.0.0.1或者是本机的IP地址.
+	ProxyPass /ecu_wap_service http://135.140.39.124:8080/projectName
+	ProxyPassReverse /ecu_wap_service  http://135.140.39.124:8080/projectName
+	
+六. Tomcat服务器部署项目问题
+	Tomcat部署项目的时候, Eclipse和MyEclipse有所不同, 但是都可以指定将项目部署到哪个文件夹下面, 通过双击Tomcat服务器, 在
+	Deployment Setting中设置Deploy Path, 当选择Tomcat的部署路径时, 默认在Tomcat安装路径下面的webapps下面, src下面的java文件
+	编译后保存在WEB-INF下面的classes文件夹下面, 项目中webapps下面的文件以及文件夹在Tomcat安装目录webapps/projectName文件
+	夹下面. 
+	
+七. 使用HttpClient发送请求(org.apache.http包)
+	HttpClient httpClient = new DefaultHttpClient();
+	//设置超时时间
+	httpClient.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 10000);
+	httpClient.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 10000);
+	//构造消息头
+	HttpPost method = new HttpPost(url);
+	method.setHeader("Content-type", "application/json; charset=utf-8");
+	//构造消息实体
+	StringEntity entity = new StringEntity(strJson, Charset.forName("UTF-8"));
+	entity.setContentEncoding("UTF-8");
+	//发送json格式数据请求
+	entity.setContentType("application/json");
+	method.setEntity(entity);
+	HttpResponse response = httpClient.execute(method);			
+	//接受请求状态
+	int statusCode = response.getStatusLine().getStatusCode();			
+	if(statusCode != HttpStatus.SC_OK){
+		logger.error("请求出错, 错误状态: " + statusCode);
+		return null;
+	}	
+	retStr = EntityUtils.toString(response.getEntity(), "UTF-8");
+
+八. 使用SpringMVC, 访问路径为*.html时, @ResponseBody返回json前台报错: 406问题
+	当使用ajax请求返回json数据时, 如果请求是*.html, 则Spring会默认将返回的MIME类型设置成text/html, 而前台接受的是application/json ,会
+	报406错误, 解决办法有两种:
+	第一种, 在web.xml文件中配置两个<servlet-mapping></servlet-mapping>标签: 
+	<servlet-mapping>
+		<servlet-name>DispatcherServlet</servlet-name>
+		<url-pattern> *.html </url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>DispatcherServlet</servlet-name>
+		<url-pattern> *.do </url-pattern>
+	</servlet-mapping>
+	当使用ajax请求返回json数据时, 使用*.do请求, 当访问其他路径时使用*.html路径.
+	第二种, 在spirng-controller.xml 配置文件中添加强制MIME类型转换, 将*.html结尾的请求响应MIME类型改成application/json:
+	<mvc: annotation-driven content-negotiation-manage="contentNegotiationManage"/>
+	<!-- 以.html为后缀访问默认返回text/html类型, 所以要修改返回值类型 -->
+	<bean id="contentNegotiationManage" class="org.springframework.web.accept.ContentNegotiationManagerFactoryBean"> 
+        <property name="mediaTypes">
+			<map>  
+                <entry key="html" value="application/json;charset=UTF-8"/> 
+            </map>  
+        </property> 
+	</bean>
+
+九. 使用slf4j打印日志信息注意事项
+	slf4j是一个门面, 真正的记录日志工具可以随便指定, 只要替换到相应的日志打印工具的jar包就可以, 可以使用logback, log4j等日志记录
+	工具, 使用logback时, 需要引入jar: 	logback-classic-1.0.13.jar 和 logback-core-1.0.13.jar, 使用log4j时需要引入 log4j-1.2.14.jar 和 
+	slf4j-log4j12-1.6.1.jar, 不管使用什么日志记录工具, 都需要引入slf4j-api-1.6.1.jar, 其中log4j.properties文件必须放在classpath下面, 不然
+	不会默认加载该配置文件, 需要在web.xml文件中加入以下配置:
+	<!-- log4j监听器 -->
+	<listener>
+		<listener-class></listener-class>
+	</listener>
+	<!-- 加载log4j配置文件 -->
+	<context-param>
+		<param-name>log4jConfigLocation</param-name>
+		<param-value>WEB-INF/resource/log4j.properties</param-value>
+	</context-param>
+	<!-- 动态扫描log4j配置文件, 该参数的作用是可以动态修改log4j配置文件的值而不用重新发布项目 -->
+	<context-param>
+		<param-name>log4jRefreshInterval</param-name>
+		<param-value>60000</param-value>
+	</context-param>
+	如果打印的日志格式和配置文件中指定的文件格式不同, 则是项目中引入了两个日志答应的工具, slf4j只能是二选一, 默认会优先选择
+	logback作为日志打印的工具.
+	
+十. SpringMVC项目中从前台获取到的值乱码问题
+	SpringMVC从前台获取参数时会自动的将参数注入到对应的名称中, 不管以什么样的方式取值, 如果取到的中文乱码, 可以添加一个
+	字符集过滤器, 将获取的参数全部以UTF-8的格式编码, Spring自带了字符集过滤器, 需要在web.xml文件值做相应的配置:
+	<filter>
+		<filter-name>CharacterEncodingFilter</filter-name>
+		<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+		<init-param>
+			<param-name>Encoding</param-name>
+			<param-value>UTF-8</param-value>
+		</init-param>
+	</filter>
+	
+十一. Mybatis使用时, useGeneratedKeys属性问题
+	在插入数据时, 当指定useGeneratedKeys="true"时, oracle数据库会报不支持的特性, 因为该值是获取数据库自身带来的主键自动
+	增长特性, oracle不支持主键自动增长, 所以会报错. MySQL 和 Sql Server 数据库支持主键自动增长, 但oracle数据库使用时可以
+	使用<selectKey keyProperty="id" resultType="int"></selectKey>标签指定主键, 也可以在<insert>标签中使用属性useGeneratedKeys="true",
+	keyProperty="id", 然后从序列中查出该主键的值, 使用该标签时需要指定resultType类型. 该标签还有其他的属性, databaseId指定数
+	据库, 比如ORACLE 或 MySQL等, order="BEFORE"表示在进行插入操作之前执行, order="AFTER"表示在插入操作之后执行. 该标签只
+	能用在修改和插入标签中. MySQL中select last_insert_id()获取最后一次插入的ID.
+	<insert id="getGeneratedKey3" parameterType="cn.kolbe.mybatis.domain.User">  
+        <!-- 使用这种方式要注意，resultType是要设置的，否则将抛异常，该值对应的User类中的主键类型 -->  
+        <!-- keyProperty对应的是User类中的主键名，假设取名为user_id，则这边也要改成user_id --> 
+		<!-- 执行插入操作后Mybatis会将主键值赋值给User类, 可以在接下来的代码里面使用 !-->
+        <selectKey keyProperty="id" resultType="int">  
+            select LAST_INSERT_ID()
+        </selectKey>  
+        insert into users(name, password) values(#{name}, #{password})    
+    </insert>  
+	<!-- useGeneratedKeys默认值为false，keyProperty的值对应的是User类中的主键名 -->  
+	<!-- 执行插入操作后Mybatis会将主键值赋值给User类, 可以在接下来的代码里面使用 !-->
+    <insert id="getGeneratedKey2" parameterType="cn.kolbe.mybatis.domain.User" useGeneratedKeys="true" keyProperty="id">  
+        insert into users(name, password) values(#{name}, #{password})    
+    </insert>
+	
+十二. Mybatis插入数据时, 可能为NULL的字段需要指定jdbcType, 常见的String对应 VARCHAR(需要大写), Number对应NUMERIC.
+	<resultMap type="java.util.Map" id="resultjcm">  
+		<result property="FLD_NUMBER" column="FLD_NUMBER"  javaType="double" jdbcType="NUMERIC"/>  
+		<result property="FLD_VARCHAR" column="FLD_VARCHAR" javaType="string" jdbcType="VARCHAR"/>  
+		<result property="FLD_DATE" column="FLD_DATE" javaType="java.sql.Date" jdbcType="DATE"/>  
+		<result property="FLD_INTEGER" column="FLD_INTEGER"  javaType="int" jdbcType="INTEGER"/>  
+		<result property="FLD_DOUBLE" column="FLD_DOUBLE"  javaType="double" jdbcType="DOUBLE"/>  
+		<result property="FLD_LONG" column="FLD_LONG"  javaType="long" jdbcType="INTEGER"/>  
+		<result property="FLD_CHAR" column="FLD_CHAR"  javaType="string" jdbcType="CHAR"/>  
+		<result property="FLD_BLOB" column="FLD_BLOB"  javaType="Blob" jdbcType="BLOB" />  
+		<result property="FLD_CLOB" column="FLD_CLOB"  javaType="string" jdbcType="CLOB"/>  
+		<result property="FLD_FLOAT" column="FLD_FLOAT"  javaType="float" jdbcType="FLOAT"/>  
+		<result property="FLD_TIMESTAMP" column="FLD_TIMESTAMP"  javaType="java.sql.Timestamp" jdbcType="TIMESTAMP"/>  
+	</resultMap>  
+	
+十三. Mybatis使用时, Mapper配置文件问题
+	如果执行程序时报未绑定声明, 则是Mapper.xml文件和DAO方法没有绑定到一起, 有两种可能, 第一种, namespace空间中的包名指定错误, 
+	找不到DAO中的方法. 第二种可能, Mapper.xml文件没有扫描到, 如果Mapper.xml文件和DAO不在同一个包并且名称不相同, 则需要在配置
+	文件中用mapperLocations指定Mapper.xml文件的位置, 指定时可以使用通配符, **表示任意多级目录, *表示任意字符.
+	
+十四. Tomcat在服务器部署问题
+	首先修改Tomcat的端口, 保证不冲突, 在conf/server.xml文件中修改, 当需要给项目起别名时, 需要在<Host></Host>标签中新增如下代码:
+	<Context path="/gsccwap" docBase="/app/xwapp/deploy/gsccwap/" reloadable="false">
+	其中path指定项目的简称, docBase指定项目所在的文件夹, reloadable表示是否可以在项目运行过程中重新加载项目文件的修改.
+	这样做的好处是可以将tomcat和项目所在文件夹分开, 不一定要讲项目部署到tomcat的webapp文件夹下面. 指定简称可以很好的编写访问
+	路径, 隐藏项目本身的名称. 每个<Context/>标签代表一个web应用程序, 一个<Host>标签中可以有几个<Context/>标签.
+	<Host name="localhost" appBase="webapps" unpackWARs="true" autoDeploy="true"></Host>标签说明: name指定虚拟主机的域名, 
+	appBase指定虚拟主机的目录, 可以指定绝对路径, 也可以指定项目CATALINE_HOME的相对路径, unpackWARs为true时表示将war文件
+	解压后在运行, 负责为直接运行war文件. autoDeploy为true表示自动部署.
+	可以通过修改tomcat中catalina.sh文件中日志轮询的格式修改catalina.out 为 catalina-2018-03-06.out , 需要修改下面内容:
+	org.apache.catalina.startup.Bootstrap "$@" start \
+    2>&1 |/home/xwapp/cronolog-1.6.2/sbin/cronolog "$CATALINA_BASE/logs/catalina-%Y-%m-%d.out" &
+	其中cronolog是tomcat的日志轮询工具, 这样做的好处是catalina.out文件不会太大, 容易分析
+十五. Nginx代理服务器问题
+	nginx的配置文件为nginx.conf文件, 可以代理访问地址, 也可以将静态资源交给Nginx自己处理, 当访问某一个文件夹时代理到静态资源所
+	在的目录.
+	location /center {
+            proxy_pass http://127.0.0.1:8080/CenterManage;
+            proxy_redirect off;
+        }
+	上面的代理是当访问/center时, 代理到tomcat的项目路径中.
+	location /resources
+		{
+			alias E:/newmall/mallv4/B2C/Resource/StaticResources/src/main/resources/META-INF/resources/;
+		}
+	上面的代理是当访问静态资源时, 将代理到静态文件所在的地方, 注意alias关键字的使用.
+	location ^~ /wapstatic/ {//后面的正则表达式中~表示区分大小写, ~*表示不区分大小写
+		access_log logs/static.log
+		root /app/xwapp/wapHtml
+		#过期时间, 可以的单位是h--小时, d--天
+		expires 1h
+	}
+	上面的代理是当方位静态资源时, 由nginx自己来处理, 代理到静态资源所在的文件夹下面. 
+	通过nginx代理可以将项目本身和项目中需要的静态资源分开部署到不同的文件夹下面, 将代理的地址指向项目静态资源所在的文件夹即可.
+	
+	可以通过nginx+tomcat实现负载均衡的服务器. 
+	#upstream 服务器的集群
+	upstream serviceName {//serviceName是服务器集群的名字,在后面使用代理时指定使用集群的名称, 将请求代理到tomcat集群处理
+		#weight代表权重, 权重越大, 分配的概率越大
+		#ip_hash : 配置该参数后, 每个请求按ip的hash结果分配, 这样每个访客固定访问一个后端服务器, 可以解决session的问题. 
+		server 192.168.10.214:9400 weight=4; //在这里指定tomcat集群的IP以及端口号
+		server 192.168.10.215:9400 weight=4; //tomcat集群
+		server 192.168.10.216:9400 weight=4; //tomcat集群
+	}
+	配置了tomcat集群之后, 在下面的server中配置访问代理
+	server {
+		listen 9100; //监听的端口号
+		server_name: localhost; //服务域名
+		
+		location /cms {当访问localhost:9100/cms时代理到tomcat集群中处理请求
+			proxy_pass http://serviceName/cms; //serverName是上面配置的tomcat服务器集群名称, cms是需要访问的项目名称
+			proxy_redirect off;
+			
+			proxy_connect_timeout 125;
+			proxy_send_timeout 125;
+			proxy_read_timeout 125;
+		}
+	}
+	
+	server块包含在http块中, 一个http块可以包含多个server块
+		
+十六. Linux系统下面查看tomcat日志
+	tail -f catalina.out    强制打印结尾文件
+	tail -f catalina.out grep '关键字'    强制打印带有关键字的结尾日志
+	grep '关键字' catalina.out    打印日志中带有关键字的信息, 从整个文档中查找.
+	
+十七. shiro框架学习
+	1. loginUrl中指定的是登录页面的地址, 不是必须属性, 当没有指定时默认取webapp下面的login.jsp页面, 该页面也是用户没有认证时
+	需要跳转的页面. 
+	2. 登录信息提交的地址问题: 当使用表单提交数据时, from中的action可以为空字符串, 这时表单提交的地址就是登录页面的地址, 在shiroFilter
+	中可以配置登录的url为必须认证页面, 即login/loign.jsp = authc, 默认使用FormAuthenticationFilter过滤器拦截登录数据提交的地址. 注意, 在使用
+	shiro时, 登录信息提交的地址必须与登录的地址一样, 否则会authc过滤器失效.
+	
+十八. oracle数据库根据已有表结构创建表
+	create table A as select * from B; (带数据);
+	create table A as select * from B where 1=2; (不带数据)
+	复制后的表会丢失索引和主键等信息. 
+	create table tableName like oldName; 复制表结构, 不会丢失主键
+	alter table student add constraint pk_student primary key(studentid);
+	alter table students drop constraint 主键名--根据主键名删除主键
+	复制表中的数据:
+	select * into to_table from from_table; (该方法mysql不支持)
+	insert into to_table select * from from_table;
+	如果复制之后需要修改表中的一些字段, 比如有效状态等, 可以使用如下语句, 比update语句效率高:
+	create table newName like oldName; (会复制主键等信息)
+	insert into newName (field1, field2) select field1, 0 from oldName; (可以插入常量信息);
+十九. redis和tomcat实现session共享
+	在tomcat的lib目录下添加如下jar包: 
+	tomcat-redis-session-manager-VERSION.jar 
+	jedis-2.5.2.jar 
+	commons-pool2-2.2.jar
+	在conf/context.xml文件中添加如下内容:
+	<Valve className="com.orangefunction.tomcat.redissessions.RedisSessionHandlerValve" />
+	
+	
+	<Manager className="com.orangefunction.tomcat.redissessions.RedisSessionManager"
+       host="localhost"
+       port="6379"
+       database="0"
+       maxInactiveInterval="60" />
+	注意:
+		1. 按照如上配置, 使用redis数据库, 放入session中的对象必须实现Serializable接口. 使用memcache不以不实现序列化接口. 
+		2. 按照如上配置, 使用redis做session存储空间时, web应用session-time的时间单位会变成秒, 而不是原本的分, 所以在
+		   context.xml文件中我们需要指定session过期时间, 这一点很重要, 跟redis里设置过期时间的单位s要保持一致. 
+二十. mybatis配置文件中#{}和${}的区别
+	#{}实现的是sql语句的预处理参数, 之后执行的sql中用?代替, 使用的时候不需要关注数据类型, mybatis自动实现数据类型的转换, 并
+	且可以防止sql注入.
+	${}实现的是sql语句的直接拼接, 不做数据类型的转换, 需要自行判断数据类型, 不能防止sql注入.
+	#{}预编译, 占位符, 用于参数的传递.
+	${}非预编译, 直接字符串的拼接, 没有自动类型转换.
+	
+二十一. spring MVC Excel表格导出
+	通过实现AbstractExcelView类, 直接在controller中返回ModeAndView即可.
+	
+二十二. 根据value动态的选择option
+	var statusCode = ret.status;
+	$("option[value=' " + statusCode + " ']").attr("selected", "selected");
+	
+二十三. java中的反射基础知识
+	1. java中的反射是可以让我们在运行时获取类的函数, 属性, 父类, 接口等Class内部信息的机制. 通过反射还可以让我们在运行时实例化
+	对象, 调用方法, 通过调用get/set方法获取和设置变量的值, 即使方法和属性是私有的也可以通过反射的方式调用. 所以Java中的反射
+	是对Class信息的操作, 使用反射时首先需要获取到Class对象. 
+	1.1 获取Class对象
+	1.1.1 如果你在编译器知道一个类的名字的话, 可以通过以下方法获取该类的Class对象:
+		Class<?> myObjectClass = MyObject.Class;
+	1.1.2 如果你已经得到了一个对象, 你想要得到这个对象的Class对象, 可以通过以下方法获取该类的Class对象: 
+		Student student = new Student();
+		Class<?> clazz = student.getClass();
+	1.1.3 如果你在编译器获取不到目标类型, 但是你知道它的完整类路径, 可以通过以下方法获取该类的Class对象: 
+		Class<?> clazz = Class.forName("com.gsec.User");
+		在调用Class.forName() 方法时, 如果没有在classpath下面找到指定的类, 就会跑出ClassNotFindException异常.
+		Class.forName()接口说明:
+		//加载指定的Class对象, 参数1是要加载的类的完整路径, 如: com.gsec.User.(常用方式)
+		public static Class<?> forName(String className);
+		//加载指定的Class对象, 参数1是要加载的类的完整路径, 参数2为是否要初始化该Class对象, 参数3指定加载该类的ClassLoader.
+		public static Class<?> forName(String className, boolean shouldInitialize, ClassLoader classLoader);
+	1.2 通过Class对象, 构造目标类型的对象
+	1.2.1 通过Class对象构造目标类型的对象, 首先要获取该类的Constructor对象
+		public static void classForName(){
+			try{
+				//获取Class对象
+				Class<?> clazz = Class.forName("com.gsec.User");
+				//根据Class对象获取Constructor对象, 获取时如果构造器对象有参数, 需要指定参数的类型
+				Constructor<?> constructor = clazz.getConstructor(String.Class);
+				//通过constructor创建对象
+				Object object = constructor.newInstance("hello");
+			}catch(Exception e){
+			
+			}
+		}	
+	1.2.2 获取构造函数接口说明: 
+		//获取一个公有的构造函数, 参数为可变参数, 如果构造器有参数, 需要将参数类型传递给getConstructor()方法.
+		public Constructor<T> getConstructor(Class...<?> classParameter);
+		//获取所有的公有构造函数
+		public Constructor<?>[] getConstructors();
+		注意: 当你通过反射获取到Constructor, Method, Field后,在反射调用之前将对象的accessible属性设置成true可以提高反射调用
+		速度, 例如:
+		//设置构造器的accessible
+		Constructor<?> constructor = clazz.getConstructor(String.Class);
+		constructor.setAccessible(true);
+		//设置方法的accessible
+		Method method = Student.Class.getMethod("learn", String.Class);
+		method.setAccessible(true);
+	1.3 反射获取类中的函数
+	1.3.1 获取当前类中定义的方法
+		要获取当前类中定义的所有方法, 可以通过class的getDeclaredMethods方法, 它会获取当前类中public, private, protected, default的所
+		有方法, 而getDeclaredMethod(String methodName, Class...<?> parameterType)则是获取某个指定的方法. 该方法不能获取父类中
+		继承的方法, 需要得到父类中继承的方法, 需要调用getMethods()和getMethod(String methodName, Class...<?> parameterType);
+		public static void showgDeclaredMethods(){
+			Student student = new Student("zhangsan");
+			Method[] methods = student.getClass().getDeclaredMethods();
+			for(Method method : methods){
+				String methodName = method.getName();
+			}
+			try {
+				Method learnMethod = student.getClass().getDeclaredMethod("learn", String.Class);
+				//获取方法的参数类型列表
+				Class<?>[] paramClasses = learnMethod.getParameterTypes();
+				//判断函数是否是private函数
+				boolean flag = Modifier.isPrivate(learnMethod.getModifiers());
+				//执行learn方法
+				learnMethod.invoke(student, "java---->");
+			}catch(Exception e) {
+			}
+		}
+	1.3.2 获取当前类, 父类中定义的公有方法
+		class.getMethods(), class.getMethod(String name, Class...<?> parameterType)
+		获取属性同理: class.getFields(), class.getField(String name);
+	1.3.3 接口说明
+		// 获取 Class 对象中指定函数名和参数的函数，参数一为函数名，参数 2 为参数类型列表
+		public Method getDeclaredMethod (String name, Class...<?> parameterTypes)
+		// 获取该 Class 对象中的所有函数( 不包含从父类继承的函数 )
+		public Method[] getDeclaredMethods ()
+		// 获取指定的 Class 对象中的**公有**函数，参数一为函数名，参数 2 为参数类型列表
+		public Method getMethod (String name, Class...<?> parameterTypes)
+		// 获取该 Class 对象中的所有**公有**函数 ( 包含从父类和接口类集成下来的函数 )
+		public Method[] getMethods ()
+
+二十四. idea中控制台乱码
+	在idea64.exe.vmoptions中添加-Dfile.encoding=UTF-8 
+	在tomcat配置中添加: -Dfile.encoding=UTF-8 
+	
+二十五. redis序列化问题
+	<bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+		<property name="connectionFactory">
+			<bean class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory"/>
+		</property>
+		<property name="KeySerializer">
+			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
+		</property>
+		<property name="ValueSerializer">
+			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
+		</property>
+		<property name="hashKeySerializer">
+			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer"/>
+		</property>
+		<property name="hashValueSerializer">
+			<bean class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer"/>
+		</property>
+	</bean>
+	
+二十六. mybatis执行ddl语句
+	mytatis可以执行DDL语句, 可以执行多条, 语句之间用分号隔开, 但需要在连接数据库的参数后面加上: allowMultiQueries=true参数. 
+	给表添加主键约束的sql, 其中``可加可不加: 
+	ALTER TABLE `tableName` ADD PRIMARY KEY (`cloumn_name');
+	给表新增字段:
+	ALTER TABLE `tableName` ADD `status' varchar(4) DEFAULT '0' COMMONT '这里是表注释';
+	
+二十七. mysql通过.ibd和.frm文件恢复数据(delete)
+	创建同样名字的数据库名, 随便创建一张表, 随后停止mysql服务, 将备份出来的.frm文件去覆盖新建表的.frm文件, 同时
+	修改my.ini文件配置innodb_force_recovery = 6; 如果报错, 创建一张相同字段的表. 需要注释掉innodb_force_recovery = 6. 
+	执行下面语句分离表空间: alter table tbl_user discard tablespace; 即解除.frm文件和.idb文件的关系
+	然后将备份的.idb文件覆盖原有的文件, 执行: alter table tbl_user import tablespace; 使其发生关系;
+	原文: http://blog.csdn.net/kane_canpower/article/details/79115762
+	.frm文件主要存储表结构, 如果知道表结果的话可以不用导入这个文件, 直接创建异常同样表结构的表, 然后解除表空间绑定, 导入备份
+	的.idb文件, 然后将新建表的.frm与新导入的.idb文件发生关联. 恢复数据时, 数据库的版本要一致, 不然会出现row_fromat不匹配的错误. 
+	
+二十八. mysql5.7安装
+	1. mysqld install
+	2. mysqld --defaults-file=d:\my.ini --initialize-insecure --user=mysql
+	3. net start mysql启动服务
+	4. ALTER USER 'root'@'localhost' IDENTIFIED BY '123'; 修改密码. 
+	5. mysqldump  -uroot -proot -d sy_xwwt  t_bt_user_info>tllzy1.sql  语句导出文件

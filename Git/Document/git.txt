@@ -1,0 +1,71 @@
+1. git stash save -a "stash1"   --切换分支之前暂时保存本地的修改
+
+2. git stash pop --index stash@{0}   --还原本地的保存, --index 参数的作用是还原暂存区
+
+3. git stash apply --index stash@{0}  --还原本地的保存，区别在于pop会删除stash的记录，可以保存多次，还原时根据每次stash的引用还原
+
+4. git stash list  --查看所有的保存记录
+
+5. git stash drop stash@{0}  --删除stash对应的引用
+
+6. git stash clear  --可以删除多个stash对应的引用，等本地修改提交后可以删除本地的保存引用
+
+7. git log --online --decorate --graph --all   --查看所有分着的提交记录以及树状结构
+
+8. git tag "tagname" SHA-1   --基于当前提交创建一个标签
+
+9. git tag -a "TAGNAME" SHA-1   --基于当前提交创建一个标签
+
+10. git show tagname  --查看标签，标签实际是指向一次提交，可以通过git checkout tagname切换到该标签对应的分支，但是该分支是只读分支，
+						可以使用git checkout -b name基于这次请求创建一个可编辑的分支。
+				
+11. git merge branchName   --合并分支
+
+12. git merge --abort  --放弃本次合并
+
+13. git show master/HEAD/SHA-1  --查看git对象
+
+14. git show master^/master^n   --查看具体的信息
+
+15. git show --stat --online master^2  --查看master分支的第二幅提交
+
+16. git config --golab alias.lol "git log --online --decorate --graph --all"   --起别名
+
+17. git checkout  --还原工作区
+
+18. git reset  --还原暂存区
+
+19. git clean  --清楚不需要跟踪的文件
+
+20. git clean -n --查看那些文件将会被清除，默认忽略.gitignore文件中指定的文件
+
+21. git clean -f  --强制清楚-n参数中显示的将要清楚的文件，可以使用-X移除.gitignore文件中指定的文件
+
+22. git commit --amend    --可以产生一个新的提交，用来替换当前多指向的提交
+
+23. git rebase master    --维护一个线性历史，可以合并两个分支，但是历史看起来是线性的
+
+24. git rebase --abort   --放弃本次rebase操作
+
+25. git rebase --continue  --执行完git rebase master 操作之后执行，看提示，可以循环进行，最后git add .然后继续git rebase --continue 
+
+26. git reset   --还原操作，有三个参数，--hard还原暂存区和工作区，--mixed还原暂存区，但是没有还原工作区，--soft工作区和暂存区都没有还原，
+					只是将HEAD指针指向了--soft后面指定的提交
+
+27. git reflog  --记录历史详细信息
+
+28. git fetch origin  --拉去远程代码
+
+29. git merge origin/master  --将远程跟踪分支合并到当前分支，即将origin/master 移动到当前分支
+
+30. git pull --rebase  --相当于git fetch oringin + git rebase origin/master操作
+
+31. git diff master origin/master  --查看两个分支之间的区别
+
+32. ssh-keygen -t rsa -C "xiaoqiangpulm@foxmail.com"   --可以创建一个ssh keys用于github上提交代码时不用每次都输入用户信息
+						回车后连续输入两次密码，然后输入如下命令：
+	eval "$(ssh-agent -s)" 回车 
+	ssh-add ~/.ssh/id_rsa  回车输入前面输入的密码，然后将生成的id_rsa.pub文件中的内容添加到GitHub中。
+	ssh -T git@github.com   --验证是否添加
+
+
