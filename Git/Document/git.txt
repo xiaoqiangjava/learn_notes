@@ -67,5 +67,8 @@
 	eval "$(ssh-agent -s)" 回车 
 	ssh-add ~/.ssh/id_rsa  回车输入前面输入的密码，然后将生成的id_rsa.pub文件中的内容添加到GitHub中。
 	ssh -T git@github.com   --验证是否添加
+	
+33. 提交代码时可以使用xargs传递参数：
+	git status |grep 'modified' |awk '{print $2}' |xargs git add   ##该命令会将所有修改的文件添加到缓存区，在修改文件多时适用
 
 
