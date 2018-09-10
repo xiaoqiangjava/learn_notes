@@ -149,12 +149,17 @@
 	会压缩文件，tar -czvf可以先打包文件，然后调用gzip压缩文件。解压缩时使用tar -xzvf.这些命令中的-f选项必须放在最后面
 	-C选项指定的文件夹必须存在
 	5.> tar 和bzip2结合也可以实现打包和压缩，可以使用-j选项取代-z选项，文件以.tar.bz2结尾
-	
+	6.> lsof -i:端口    查看端口是否被占用
 10. 软件安装
 	apt 是Advance Package Tools，是Linux系统下一款安装包管理工具，可以在终端安装，卸载和更新软件包
 	安装: sudo apt install 软件包
 	卸载：sudo apt remove 软件名
 	更新：sudo apt upgrade   
 	命令中的sudo可以让系统中的所有用户都可以使用安装的软件
+11. 不解压查看一个归档文件的内容
+	1.> vim file  vim可以不解压 文件查看文件内容
+	2.> tar -tf test.tar  列出tar文件的内容，-v参数可以显示文件的详细信息
+	3.> zip -sf test.zip  列出zip文件的内容
+	4.> rar -v test.rar   列出rar文件的内容
 	
 	
