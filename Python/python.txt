@@ -1,4 +1,8 @@
 							python基础
 1. python是一门解释型语言，所谓解释型语言就是读取一行解释一行，即从上往下逐行执行，python版本 中2.7是最后一个2.x中最后一个版本
 	建议使用python3.x ,其使用的python解释器是python3
+
 2. 交互式解释器：ipython/ipython3
+
+3. pip install -r requirements.txt     # 安装依赖的模块, 从文件中读取模块信息
+   pip install --trusted-host pypi.python.org -r requirements.txt   # 安装第三方模块时指定host

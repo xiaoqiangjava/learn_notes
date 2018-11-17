@@ -1,13 +1,205 @@
 										Docker学习笔记
-1. docker安装:
+一. docker安装:
 
 	sudo apt-get install docker.io
 	sudo systemctl start docker
 	sudo systemctl enable docker
 	
-2. docker权限问题:
+二. docker权限问题:
 	
 	sudo groupadd docker          # 创建docker组
 	sudo usermod -G docker -a username       # 将用户添加到docker组
 	sudo service docker restart     # 重启docker服务
 	newgrp - docker    # 刷新docker组成员
+	
+三. Dockerfile文件
+3.1 The docker bild command builds an image from a Dockerfile and context. The build's context is the set of files at a specified
+location Path or URL. The Path is a directory on your local filesystem. The URL is a GIT repository location. A context is processed recursively.
+
+docker build .      # 在当前目录构建镜像, .代表当前目录. 该目录中必须包含Dockerfile文件以及需要构建到镜像中的文件以及目录
+docker build -f /path/to/a/Dockerfile .      # 指定了Dockerfile文件的路径
+
+3.2 You can specify a repository and tag at which to save the new image if the build succeeds
+
+docker build -t imageName:imageVersion        # 构建镜像时指定标签和版本
+docker build -t shykeys/myapp:1.0.0 -t shykeys/myapp:latest    # 指定多个tag
+
+3.3 Docker runs instructions in a Dockerfile in order. A Dockerfile must start with FROM instruction. The FROM instruction specifies the base image from which you are building.
+
+FROM <image>[:<tag>] [AS <name>]     # FROM指令指定基础镜像的名称以及版本号
+
+3.4 FROM instruction support variables that are declared by any ARG instruction that occur before the FROM
+
+ARG VERSION=latest      # ARG 指令可以指定声明一个变量, 用于后面的FROM指令
+FROM ubuntu:$VERSION    # FROM指令中使用ARG指定的镜像版本
+
+3.5 The RUN instruction will execute any commands in a new layer on top of the current image and commit the results.
+
+RUN /bin/bash -c 'echo hello'    # RUN 指令将在当前镜像上面的一个新层上执行并提交结果
+
+3.6 The main purpose of a CMD is to provide defaults for an executing container. These defaults can include an executable, or they can omit the executable, in which case you must specify an ENTRYPOINT instruction as well
+
+CMD ["/bin/sh", "-c", "echo hello"]   # execForm
+CMD ["param1", "param2"]              # 当CMD命令不提供executable时, 是为ENTRYPOINT提供参数
+CMD echo 'this is a test'   
+
+3.7 The EXPOSE instruction in froms Dockers that the container listens on the specify network ports at runtime. You can specify whether the port listens on TCP or UDP, and the default is TCP if the protocol is not specified.
+
+EXPOSE 80/TCP      # 指定容器运行时监听的端口号
+
+3.8 The ENV instruction set the enviroment variables <key> to value <value>
+
+ENV <key>=<value>     # 指定的变量可以在后面的所有指令中使用
+
+3.9 The COPY instruction copies new files or directories from <src> and adds them to filesystem of the container at the path <dest>.
+
+COPY [--chown=<user><group>] <src> <dest>     # --chown 可以指定文件的拥有者
+
+3.10 The ADD instruction copies new files, directories or remote file URLs from <src> and add them to the filesystem of the image at
+the Path <dest>
+
+ADD [--chown=<user>:<group>] <src>... <dest>
+ADD [--chown=<user>:<group>] ["<src>",... "<dest>"]  # 其中src文件必须在build context里面, 不能添加../的文件到dest
+ADD hom* /mydir/               # ADD 指令可以使用模式匹配多个文件, 可以将远程文件添加到镜像服务中
+
+3.11 An ENTRYPOINT allows you to configrue a container that will run as an executable.
+
+ENTRYPOINT ["executable", "param1", "param2"]
+ENTRYPOINT command param1 param2
+
+3.12 The WORKDIR instruction set the working directory for any RUN, CMD, ENTRYPOINT, COPY add ADD instructions that follow it 
+in the Dockerfile. If WORKDIR doesn't exit, it will be created even if it's not used in any subsequent Dockerfile instruction.
+
+DOCKDIR dirname     # 如果指定目录不存在会默认创建
+
+
+四. docker command 常用命令
+4.1 docker --version    # 查看docker的版本
+
+4.2 docker info or docker version     # 查看docker的详细信息
+
+4.3 You can see a list of you running containers with command docker ps.
+
+docker ps     # 查看运行中的容器列表
+
+4.4 List images that was downloaded to your machine
+
+docker images          # 列出所有下载的镜像, 相当于docker image ls 
+docker image ls 
+
+4.5 List the container which exits after displaying its message. if it were still running, you would not need the --all options.
+
+docker container ls --all     # list all containers
+docker container ls  		  # list running containers
+docker container ls -aq       # list all in quit mode containers 
+
+4.6 Execute Docker image
+
+docker run hello-world
+
+4.7 Build an image
+
+docker build -t hello-world .    # 构建镜像, -t指定tag
+
+4.8 Run the app, mapping your machine's port 4000 to the container's published port 80 using -p option 
+
+
+docker run -p 4000:80 hello-world:2.0.0    # 4000是虚拟机的端口, 80是已发布容器的端口
+docker run -d -p 4000:80 friendlyhello     # run the app in the background
+
+
+五. End the process 终止一个容器的进程
+
+docker container stop 1fa4ab2cf395
+
+
+六. Configuring remote access with daemon.json  配置远程访问
+
+vi /etc/docker/daemon.json
+{
+"hosts": ["unix:///var/run/docker.sock", "tcp://127.0.0.1:2375"]
+}
+
+
+七. chkconfig
+
+sudo chkconfig docker on
+
+
+八. Share your image   分享你的镜像
+
+8.1 docker login
+8.2 docker tag imageName username/repository:imageVersion
+8.3 docker push username/repository:imageName:imageVersion
+
+总结:
+docker build -t friendlyhello .  # Create image using this directory's Dockerfile
+docker run -p 4000:80 friendlyhello  # Run "friendlyname" mapping port 4000 to 80
+docker run -d -p 4000:80 friendlyhello         # Same thing, but in detached mode
+docker container ls                                # List all running containers
+docker container ls -a             # List all containers, even those not running
+docker container stop <hash>           # Gracefully stop the specified container
+docker container kill <hash>         # Force shutdown of the specified container
+docker container rm <hash>        # Remove specified container from this machine
+docker container rm $(docker container ls -a -q)         # Remove all containers
+docker image ls -a                             # List all images on this machine
+docker image rm <image id>            # Remove specified image from this machine
+docker image rm $(docker image ls -a -q)   # Remove all images from this machine
+docker login             # Log in this CLI session using your Docker credentials
+docker tag <image> username/repository:tag  # Tag <image> for upload to registry
+docker push username/repository:tag            # Upload tagged image to registry
+docker run username/repository:tag                   # Run image from a registry
+
+
+九. Service   服务--容器的集合
+
+9.1 Your first docker-compose.yml file 
+	version: "3"
+	services:
+	  web:     # service name
+		# replace username/repo:tag with your name and image details
+		image: username/repo:tag
+		deploy:
+		  replicas: 5
+		  resources:
+			limits:
+			  cpus: "0.1"
+			  memory: 50M
+		  restart_policy:
+			condition: on-failure
+		ports:
+		  - "4000:80"
+		networks:
+		  - webnet
+	networks:
+	  webnet:
+  
+9.2 Run your load-balanced app    运行负载均衡的APP
+
+1> docker swarm init          # 在docker stack deploy之前需要初始化swarm
+2> docker stack deploy -c docker-compose.yml appName     # 服务部署时需要制定appName
+
+9.2 Get the service ID for the one service in our application
+
+docker service ls         # 获取服务id
+
+9.3 A single container running in a service is called a task. List the task for you service .
+
+docker service ps appName_serviceName     # 列出一个服务中的所有task
+docker container ls -q
+
+9.4 Take down the app and the swarm
+
+docker stack rm appName_serviceName     # 卸载已经发布的服务
+docker swarm leave --force              # 卸载swarm
+
+
+总结: 
+docker stack ls                                            # List stacks or apps
+docker stack deploy -c <composefile> <appname>  # Run the specified Compose file
+docker service ls                 # List running services associated with an app
+docker service ps <service>                  # List tasks associated with an app
+docker inspect <task or container>                   # Inspect task or container
+docker container ls -q                                      # List container IDs
+docker stack rm <appname>                             # Tear down an application
+docker swarm leave --force      # Take down a single node swarm from the manager

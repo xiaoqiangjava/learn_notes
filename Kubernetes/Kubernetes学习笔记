@@ -1,0 +1,21 @@
+										Kubernetes学习笔记
+1. Kubernetes中Deployment为Pod和Replica Set(升级版的Replication Container)提供声明式更新, 在Replica Set中, 一个Pod对应一个Container, 在Kubernetes中, 最常见的是使用Docker作为Pod的runtime. Deployment Controller可以创建和管理多个Pod, 提供副本管理, 滚动升级和集群级别的自愈能力. 例如, 如果一个Node故障, Controller会自动将该节点上面的Pod调度到其他健康的Node上面.
+
+2. 通常情况下, Deployment Controller会使用你提供的Pod Template来创建Pod.
+
+3. Replication Controller 
+Replication Controller通过监控运行中的Pod来保证集群中运行指定数目的Pod副本, 使用于长期伺服型的业务类型
+
+4. Replica Set 
+Replica Set(RS)是Replication Controller(RC)的升级版, 主要区别在于RS支持更多种类型的匹配模式, 副本集对象一般不单独使用, 而是作为Deployment的理想状态参数使用.
+
+5. Deployment
+Kubernetes对所有长期伺服型(long-running)的业务管理, 都会通过Deployment来管理. Deployment表示对K8s集群的一次更新操作, 是一个比RS应用更加广泛的API对象, 可以创建一个新的服务, 也可以是滚动升级一个服务.
+
+6. Service
+RC, RS和Deployment只是保证了支撑服务的微服务的Pod数量, 但是没有解决如何访问这些服务的问题, 一个Pod只是一个运行服务的事例, 随时可能在一个节点上面停止, 在另一个节点上面以一个新的IP启动一个新的Pod, 因此不能以确定的IP和Port提供服务. 要稳定的提供服务
+需要服务 发现以及负载均衡能力. 在K8s集群中, 客户端需要访问的服务就是Service对象. 每个Service对象会对应一个进群内部的有效的
+虚拟ip, 集群内部通过虚拟IP访问服务.
+
+7. Namespace
+namespace为集群提供虚拟的隔离作用, K8s初始有两个namespace, 分别为: default和kube-system
