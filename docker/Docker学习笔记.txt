@@ -1,0 +1,13 @@
+										Docker学习笔记
+1. docker安装:
+
+	sudo apt-get install docker.io
+	sudo systemctl start docker
+	sudo systemctl enable docker
+	
+2. docker权限问题:
+	
+	sudo groupadd docker          # 创建docker组
+	sudo usermod -G docker -a username       # 将用户添加到docker组
+	sudo service docker restart     # 重启docker服务
+	newgrp - docker    # 刷新docker组成员
