@@ -168,5 +168,18 @@
 	4.> v    打开可视化， 使用方向键选择文本，使用y复制，使用p粘贴到当前光标所在字符之后
 	
 13. nslookup -vc 域名 8.8.8.8  获取域名对应的ip
+
+14. systemctl start firewalld     --启动防火墙
+
+15. systemctl stop firewalld      --停止防火墙
+
+16. systemctl status firewalld    --查看防火墙的状态
+
+17. systemctl disable firewalld   --开机禁用
+
+18. systemctl enable firewalld    --开机启用
+
+19. netstat -nap |grep pid        --根据PID查看占用的端口号
+
 	
 	

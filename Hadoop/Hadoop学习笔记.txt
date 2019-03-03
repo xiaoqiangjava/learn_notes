@@ -1,0 +1,76 @@
+						Hadoop学习笔记
+1. Hadoop是一个适合海量数据的分布式存储和分布式计算的平台.
+2. Hadoop包含三个组件:
+	1> HDFS: 是一个分布式存储框架, 适合海量数据存储
+		主从结构:
+			NameNode: 接受用户操作请求, 是用户操作的入口.
+					  维护文件系统目录结构, 称作命名空间.
+			DataNode: 负责存储数据
+	2> MapReduce: 是一个分布式计算框架, 适合海量数据的计算
+		由两个阶段组成: Map 和 Reduce 
+			Map 阶段是一个独立的程序, 有很多节点独立运行, 每个节点处理一部分数据.
+			Reduce阶段也是一个独立的程序, 可以理解为一个单独的聚合程序.
+	3> YARN: 是一个资源调度平台, 负责给计算框架分配计算资源
+		主从结构:
+			ResourceManager: 集群资源的分配跟调度
+							 只要实现ApplicationMaster接口才能被ResourceManager管理, 比如:MapReduce, Storm, Flink, Spark.							 
+			NodeManager: 单节点资源的管理
+3. Hadoop伪分布式集群搭建
+	1> 准备Linux环境: Java, 静态ip, hostname, hosts, iptables, chkconfig, ssh, 免密登录
+		Java: export PATH=$PATH:$JAVA_HOME
+		静态ip: 参考博客https://blog.csdn.net/aafeiyang/article/details/81533542
+		hostname: hostnamectl set-hostname <hostname>
+		iptables: 
+			centos7: systemctl stop firewalld 停用防火墙, systemctl disable firewalld 开机禁用
+			centos6: service iptables status, service iptables stop
+		chkconfig: centos6中设置开机禁用防火墙, chkconfig iptables --list, chkconfig iptables off开机禁止启动防火墙
+		ssh: ssh-keygen -t rsa生成秘钥, ssh-copy-id hostname将生成的秘钥添加的相应的主机上面
+	2> 修改配置文件: $HADOOP_HOME/etc/hadoop
+		hadoop-env.sh
+			export JAVA_HOME=/data/soft/java/jdk_1.8.0_191
+			export HADOOP_LOG_DIR=/data/hadoop_repo/logs/hadoop
+		yarn-env.sh
+			export JAVA_HOME=/data/soft/java/jdk_1.8.0_191
+			export YARN_LOG_DIR=/data/hadoop_repo/logs/yarn
+		core-site.xml
+			<configuration>
+				<property>
+					<name>fs.defaultFS</name>
+					<value>hdfs://learn:9000</value>
+				</property>
+				<property>
+					<name>hadoop.tmp.dir</name>
+					<value>/data/hadoop_repo</value>
+			   </property>
+			</configuration>
+		hdfs-site.xml
+			<configuration>
+				<property>
+					<name>dfs.replication</name>
+					<value>1</value>   <!-- 伪分布式只有一个节点, 所以文件的备份数量为1 -->
+				</property>
+			</configuration>
+		yarn-site.xml
+			<configuration>
+				<property>
+					<name>yarn.nodemanager.aux-services</name>
+					<value>mapreduce_shuffle</value>   <!-- 表示yarn上运行的是MapReduce程序 -->
+				</property>
+			</configuration>
+		mapred-site.xml    mv mapred-site.xml.template mapred-site.xml
+			<configuration>
+				<property>
+					<name>mapreduce.framework.name</name>
+					<value>yarn</value>
+				</property>
+			</configuration>
+		slaves
+			localhost
+	3> 格式化hdfs
+		bin/hdfs namenode -format   # 格式化操作不能重复执行, 要是需要重复执行加-force参数
+	4> 启动集群
+		全部启动集群所有的进程: sbin/start-all.sh, sbin/stop-all.sh
+		单独启动hdfs(web端口为50070)和yarn(web端口8088): sbin/start-dfs.sh, sbin/stop-dfs.sh, sbin/start-yarn.sh
+	5> jps命令或者通过访问web页面: http://learn:8088(yarn), http://learn:50070(hdfs)
+		
+		
