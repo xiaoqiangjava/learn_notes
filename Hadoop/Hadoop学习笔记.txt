@@ -5,11 +5,22 @@
 		主从结构:
 			NameNode: 接受用户操作请求, 是用户操作的入口.
 					  维护文件系统目录结构, 称作命名空间.
+					  是整个文件系统的管理节点, 维护着整个文件系统的文件目录树, 文件/目录的元信息和每个文件对应的
+					  数据块列表.
 			DataNode: 负责存储数据
+					  文件块(block): 最基本的存储单位, 默认HDFS文件块的大小为128MB
 	2> MapReduce: 是一个分布式计算框架, 适合海量数据的计算
 		由两个阶段组成: Map 和 Reduce 
 			Map 阶段是一个独立的程序, 有很多节点独立运行, 每个节点处理一部分数据.
+				框架使用InputFormat类的子类把输入文件划分为很多个InputSplit, 默认, 每个HDFS的block对应一个InputSplit.
+			通过RecordReader类, 把每个InputSplit解析成一个<k1, v1>, 其中这里的k1是每一行的偏移量, 
+			默认情况下, 框架对InputSplit中的每一行解析成一个<k1, v1>. 一个InputSplit对应一个map task. 计算结果
+			生成<k2, v2>.
 			Reduce阶段也是一个独立的程序, 可以理解为一个单独的聚合程序.
+				框架对map的输出结果<k2, v2>进行分区, 不同的分区中的<k2, v2> 由不同的reduce task处理, 默认只有一个分区.
+			框架对每个分区中的数据, 按照k2进行排序, 分组(相同k2的v2分成一组), 分组不会减少<k2, v2>的数量
+			shuffle过程将不同map task的相同分区的内容copy到相同的reduce节点上面, reduce的个数与map的分区个数相同
+			
 	3> YARN: 是一个资源调度平台, 负责给计算框架分配计算资源
 		主从结构:
 			ResourceManager: 集群资源的分配跟调度
@@ -72,5 +83,32 @@
 		全部启动集群所有的进程: sbin/start-all.sh, sbin/stop-all.sh
 		单独启动hdfs(web端口为50070)和yarn(web端口8088): sbin/start-dfs.sh, sbin/stop-dfs.sh, sbin/start-yarn.sh
 	5> jps命令或者通过访问web页面: http://learn:8088(yarn), http://learn:50070(hdfs)
-		
+	
+4. HDFS shell 是我们操作分布式文件系统的一个客户端: bin/hdfs dfs -command URI, URI的格式: hdfs://learn:9000/dir/file
+   大多数HDFS shell 和对应的Linux shell命令类似
+	1> hdfs dfs -put -f localSrc hdfsSrc    将本地文件上传到hdfs上面, -f强制上传, 覆盖已经存在的文件
+	2> hdfs dfs -get /hello.txt .         	将hdfs文件下载本地当前目录
+	3> hdfs dfs -mkdir /data 				在hdfs上面创建文件夹
+	4> hdfs dfs								显示命令, --help显示命令的使用方法
+	
+5. 停止yarn上面的application
+	yarn application -kill <application_id>
+	
+6. 启动historyserver进程: 该进程的作用是把之前本来散落在nodemanager节点上面的日志统计收集到hdfs上面的指定目录中
+	修改集群配置yarn-site.xml文件:
+	<property> 
+		<name>yarn.log-aggregation-enable</name>  
+		<value>true</value>
+	</property>
+	<property>
+		<name>yarn.log.server.url</name>
+		<value>http://learn:19888/jobhistory/logs/</value>
+	</property>
+	重启集群--> 启动historyserver进程(在所有的nodemanager节点上面启动):
+	执行: sbin/mr-jobhistory-daemon.sh start historyserver
+
+7. 提交MapReduce任务到Hadoop集群:
+   hadoop jar mapreduce-learn-1.0.0.jar com.xq.mapreduce.WordCount /inputpath /outputpath
+   hadoop [command | classname] 输入路径 输出路径	
+	
 		
