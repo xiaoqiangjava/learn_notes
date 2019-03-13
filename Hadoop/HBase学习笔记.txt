@@ -1,0 +1,167 @@
+						HBase学习笔记
+1. Hadoop Database 是一个高可靠, 高性能, 面向列, 面向列, 可伸缩的分布式存储系统.
+   HBase利用HDFS作为其文件存储系统, 利用MarReduce来处理HBase中的海量数据,利用Zookeeper作为协调工具.
+   HBase是一个NoSQL(Not Only SQL)数据库
+   高可靠: 指的是HBase非常稳定
+   高性能: 指的是可以存储上亿或者十亿级别的数据, 可以实现毫秒级查询
+   面向列: 指的是数据的存储方式, 按照列存储
+   可伸缩: 表示可以很方便的添加或者删除某一个节点
+   
+2. HBase是一个开源的NOSQL数据库(key-value类型), HBase只关注查询, HDFS负责做数据存储
+   与行存储数据库的区别:
+   比如有1万条数据, 数据格式都一样, 有100列
+   按行存储的数据库是将这些数据存储在一个大文件中, 所以需要查询某一列, 也要把整个文件全部读取,
+   然后在进行过滤, 如果存储到列式数据库中, 针对这100列就可以存储到100个文件中, 这样查询某一类数据的
+   话, 只需要找到这一列对应的存储文件即可.
+   
+3. HBase应用场景
+   > 半结构化或者非结构化数据
+		对于数据结构字段不够明确或者杂乱无章很难按照一个概念去进行抽取的数据适合用HBase, 即某一列会不断的增加或者删除.
+   > 记录非常稀疏
+		RDBMS的行的列数是固定的，值为null的列浪费了存储空间。HBase为null的Column不会被存储，这样既节省了空
+	间又提高了读性能
+   > 多版本数据
+		Row key和Column key定位到的Value可以有任意数量的版本值，因此对于需要存储变动历史记录的数据，
+		用HBase就非常方便了。业务上一般只需要最新的值，但有时可能需要查询到历史值
+   > 超大数据量
+		当数据量越来越大，RDBMS数据库撑不住了，就出现了读写分离策略，通过一个Master专门负责写操作，
+		多个Slave负责读操作，服务器成本倍增。随着压力增加，Master撑不住了，这时就要分库了，
+		把关联不大的数据分开部署，一些join查询不能用了，需要借助中间层。随着数据量的进一步增加，
+		一个表的记录越来越大，查询就变得很慢，于是又得搞分表，比如按ID取模分成多个表以减少单个表的记录数。
+		经历过这些事的人都知道过程是多么的折腾。采用HBase就简单了，只需要加机器即可，HBase会自动水平切分扩展，
+		跟Hadoop的无缝集成保障了其数据可靠性（HDFS）和海量数据分析的高性能（MapReduce）。
+
+4. HBase逻辑模型
+   > HBase 是key-value类型的数据库, 不是RDBMS, 是属于NoSQL类型的数据库
+   > 在一个表中，每一行都是这种形式：rowkey，<列族，<列，<时间戳，值>>>
+		> 命名空间
+			命名空间类似于MySQL中的database概念，在HBase中称为namespace
+		> 表 
+			表类似于MySQL中的table概念
+		> 行
+			行类似于MySQL中行的概念
+		> 行键(RowKey)
+			行键类似于MySQL中的主键概念, 在MySQL中主键不是必须的, 在HBase 中RowKey在一行中是必须存在的
+		> 列族
+			在MySQL中没有对应的概念, 在HBase中, 列族是多个列的集合, 在定义表的时候必须定义列族
+		> 列 
+			列类似于MySQL中列的概念, 在HBase中定义表的时候, 列不能定义, 因为列式不固定的
+		> 时间戳 
+			时间戳在MySQL中没有对应的概念, 在HBase中, 默认插入的记录就有时间戳概念, 是HBase自带的,
+			不需要再表定义的时候指定, 时间戳和值是一一对应的, 通过时间戳可以区别数据的多个历史版本.
+		> 数据类型
+			在MySQL中数据类型多种多样, 常见的有int , varchar, date等, 在HBase中数据类型只有一种, byte[]
+
+5. HBase存储模型
+	> 数据排序存储
+		> 在MySQL中, 数据存储是插入数据
+		> 在HBase中数据存储是按照RowKey排序后存储的(按照ASCII码比较大小)
+	> 区域(region)
+		> 在HBase中, 一个表中的数据, 按照行划分为很多的region
+		> 每个区域是按照存储RowKey的最小值跟最大值指定的, 区间[min-RowKey, max-RowKey)
+		> 在HBase中默认提供一个目录表(catalog table), 里面存储了所有表的region信息(region server, start key, end eky).
+		> 随着表中的记录越来越多, region的size会越来越大, 那么region会自动分裂, 目的是保证每个region不会太大.
+	> 区域服务器(region server)
+		> 每个region会分散到不同的节点中存储, 这些节点称作region server 
+	> 在存储的时候, 每个列族单独存储为文件
+		> 如果一个表t1有两个列族cf1, cf2, 那么在存储的时候, 所有在列族cf1中的文件会是独立的文件, 所有在列族cf2中
+		  的文件会是另外一个文件.
+	> 所有HBase中的数据都存放在HDFS分布式文件系统中.
+	个人理解:
+		一张表里面的数据根据不同的region可以存储在不同的region server上面, region相当于一个region server里面的文件
+		夹的概念, 这个文件夹里面有多个列族文件Hfile, 同一个region不会存在于多个region server上面
+		server1						server2								server3
+		|__t1->region1[0, 10)       |__t1-region2[10, 20)				|__t1-region3[20, 30)
+				|__t1-cf1					|__t1-cf1						|__t1-cf1
+				|__t1-cf2					|__t1-cf2						|__t1-cf2
+				|__t1_cf3					|__t1_cf3						|__t1-cf3
+		
+6. Hbase集群有主节点和从节点
+   主节点: HMaster--支持一个或者多个
+   从节点: RegionServer--支持一个或者多个
+   
+7. HBase集群搭建
+   依赖关系: 
+   HBase与JDK: http://hbase.apache.org/book.html#basic.prerequisites
+   HBase与Hadoop: http://hbase.apache.org/book.html#hadoop
+   建议HBase的RegionServer节点跟Hadoop的DataNode安装在同一个节点, 这样就可以实现本地存储
+    > 解压: tar -zxvf hbase-1.2.6-bin.tar.gz
+    > 修改配置文件, cd cd hbase-1.2.6/conf
+		> vi hbase-env.sh
+			export JAVA_HOME=/data/soft/jdk1.8
+			export HBASE_MANAGES_ZK=false     # 使用外部的zookeeper
+			export HBASE_LOG_DIR=/data/hbase/logs
+		> vi hbase-site.xml
+			<configuration>
+			<property >
+				<name>hbase.rootdir</name>
+				<value>hdfs://hadoop100:9000/hbase</value>
+			</property>
+			<property>
+				<name>hbase.tmp.dir</name>
+				<value>/data/hbase/tmp</value>
+			</property>
+			<property>
+				<name>hbase.cluster.distributed</name>
+				<value>true</value>
+			</property>
+			<!-- 如果是zk集群的话，多个节点之间用逗号隔开，例如：hadoop100,hadoop101,hadoop102 -->
+			<property>
+				<name>hbase.zookeeper.quorum</name>
+				<value>hadoop100</value>
+			</property>
+			</configuration>
+		> vi backup-masters  # 主节点的备份节点, 单机时不需要配置
+		> vi regionservers   # 从节点机器信息, 单机时为localhost
+	> 启动基本的依赖环境
+		> 在Hadoop安装目录下面: sbin/start-dfs.sh
+		> 在zookeeper安装目录下面: bin/zkServer.sh start/stop
+	> zookeeper安装
+		> 解压
+		> 进入到zk的conf目录下面: cd zookeeper-3.4.9/conf
+		> 修改配置文件
+			> mv zoo_sample.cfg zoo.cfg
+			> vi zoo.cfg   添加: dataDir=/data/zookeeper
+	> 启动HBase
+		> cd hbase-1.2.6
+		> bin/start-hbase.sh
+		> jps查看进程
+	> 访问http://learn:16010
+	
+8. HBase在HDFS中的结构
+	/hbase/data/default    default是默认存放用户表的命名空间
+	/hbase/data/hbase	   hbase是存放系统表的命名空间
+	
+9. 系统表在hbase命名空间, list_namespace_tables 'hbase' 可以查看hbase命名空间下的所有表
+	其中hbase:meta表存放的是数据库所有的region信息, RowKey范围
+	hbase:namespace表存放的是所有的命名空间信息
+	> scan 'hbase:namespace'  
+		ROW                                COLUMN+CELL
+		default                            column=info:d, timestamp=1552407010893, value=\x0A\x07default
+		hbase                              column=info:d, timestamp=1552407010931, value=\x0A\x05hbase
+	其中rowkey是命名空间的名称, 可以通过create_namespace创建一个新的命名空间
+	> scan 'hbase:meta'
+	其中RowKey是tablename,startkey,timestamp.encoder
+	列info:regioninfo 显示region info的序列化信息
+	列info:server 显示的是region server的ip跟端口号
+	列info:serverstartcode 显示region server处理region的开始时间
+	
+10. 可以在HBase的UI界面通过table regions中的requests参数分析哪个region被频繁请求
+
+11. winutils下载链接: https://github.com/steveloughran/winutils
+
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
