@@ -150,8 +150,23 @@
 
 11. winutils下载链接: https://github.com/steveloughran/winutils
 
-		
-		
+12. RowKey设计原则
+	HBase按照Key存储。设计不好的RowKey会导致HBase的读写操作集中于少数的region，形成瓶颈，降低读写效率
+	(1)rowkey必须唯一。如果不唯一，会覆盖记录
+	(2)rowkey必须定长。建议是8byte的整数倍【详细解释见备注】
+	(3)rowkey是二进制字节流，理论长度不超过64K，建议越短越好，不超过100字节。rowkey越长，越影响读写效率
+	byte[] b1 = Bytes.toBytes(13581529189L)
+	byte[] b2 = Bytes.toBytes(20160606121212L)
+	byte[] b3 = Bytes.toBytes("1358152918920160606121212")
+	byte[] b4 = Bytes.add(b2, b1)
+	(4)rowkey散列原则。rowkey高位字段散列，可以化解写入时的数据倾斜。散列值只要能保证在同一时刻(毫秒)唯一即可
+	(5)如果记录经常被一起查询，那么rowkey位置应该紧挨着【假设id和name经常一块查询，就可以把这两个字段拼接到一块作为rowkey】。如果要求最近时间经常被访问，那么使用Long.MAX_VALUE-时间
+	rowkey设计切记
+	如果高位是散列值，那么范围查询性能就很差
+	如果要求范围查询，那么高位最好不用散列值
+	如果RowKey是有序的, 则查询效率非常高, 写入效率较低.
+	如果RowKey是随机的, 则写入效率非常高, 查询效率较低.
+
 		
 		
 		
