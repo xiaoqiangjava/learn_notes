@@ -403,3 +403,9 @@
 	3. net start mysql启动服务
 	4. ALTER USER 'root'@'localhost' IDENTIFIED BY '123'; 修改密码. 
 	5. mysqldump  -uroot -proot -d sy_xwwt  t_bt_user_info>tllzy1.sql  语句导出文件
+	
+二十九. Tomcat远程debug
+	Linux系统下: 修改catalina.sh
+		CATALINA_OPTS="-Xdebug  -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n"
+	Windows系统下: 修改startup.bat
+		SET CATALINA_OPTS=-server -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8000
