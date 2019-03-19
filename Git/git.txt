@@ -71,4 +71,6 @@
 33. 提交代码时可以使用xargs传递参数：
 	git status |grep 'modified' |awk '{print $2}' |xargs git add   ##该命令会将所有修改的文件添加到缓存区，在修改文件多时适用
 
+34. git checkout -b <branchName> remote-branck   # 基于远程分支创建新分支
+
 
