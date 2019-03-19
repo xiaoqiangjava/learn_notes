@@ -1,4 +1,23 @@
 							Scala学习笔记
-1. 
+1. scala中的容器分为可变容器跟不可变容器, 分别在scala.collection.mutable和scala.collection.immutable两个
+	包下面, immutable包里面的元素值不可被修改
+	当immutable包中变量被var修饰时, 可以追加值, 被val修饰时不可追加
+2. 定义函数: val f1 = (x:Int, y:Int) = x + y
 
-2. 
+3. 定义方法: 需要使用def关键字
+	def m1(x:Int, y:Int): Unit => x + y
+	
+4. Option[Int]类型有0个或者1个值, Some(1) 和 None, 使用flatten方法可以展开Option, 值为None是不会显示
+	例: List(Some(1), None, Some(2), Some(4), None).flatten  => List(1, 2, 4)
+	
+5. Scala中的主构造函数在定义类的时候指定参数, 可以通过this添加辅助构造函数
+
+6. 修饰控制可以作用于指定的包或者类, 比如private[log]表示除了log包跟本类可以访问该属性之外, 对其他的类不可见
+
+7. scala中不支持++, --操作符
+
+8. 1 to 10 相当于[1, 10], 1 util 10 相当于[1, 10)
+
+9. scala中的for循环 for(i <- list)
+
+10. scala中的可变参数name:String*
