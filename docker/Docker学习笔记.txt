@@ -203,3 +203,7 @@ docker inspect <task or container>                   # Inspect task or container
 docker container ls -q                                      # List container IDs
 docker stack rm <appname>                             # Tear down an application
 docker swarm leave --force      # Take down a single node swarm from the manager
+
+10. docker load -i xxxx.tar     # 加载tar文件到本地
+
+11. docker save -o xxxx.tar imageName:imageVersion    # 将镜像保存到tar
