@@ -1,2 +1,0 @@
-							Spark学习
-1. 切记: 运行Spark任务时, Spark的包_后跟的是Scala的版本, 确保使用Spark的版本和Scala的版本保持一致

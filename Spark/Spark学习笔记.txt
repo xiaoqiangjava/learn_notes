@@ -1,0 +1,36 @@
+					Spark学习笔记
+1. Spark集群安装
+	切记: 运行Spark任务时, Spark的包_后跟的是Scala的版本, 确保使用Spark的版本和Scala的版本保持一致
+	官网下载spark安装包, 解压到指定目录
+	修改conf下面的配置文件
+	spark-env.sh
+		JAVA_HOME=/data/soft/Java/jdk1.8.0_201   
+		SPARK_MASTER_HOST=learn    # 当使用Zookeeper做HA时, 不需要指定master地址, 由Zookeeper选举
+		SPARK_MASTER_PORT=7077
+		HADOOP_CONF_DIR=/data/soft/hadoop-2.7.5/etc/hadoop    # 运行spark在yarn上时需要指定Hadoop配置文件地址
+	slaves:
+		learn   # 指定从节点主机信息
+
+2. sbin/start-all.sh 启动spark集群, sbin/stop-all.sh 停止集群
+
+3. bin/spark-submit --class org.apache.spark.examples.SparkPi \  # 指定程序运行的主类
+					--master yarn     # spark://host:port, mesos://host:port, yarn, or local.
+					--deploy-mode cluster 
+					<app-jar>         # 指定程序运行的jar包
+					[app options]	  # 指定程序运行时的参数, 可选
+					
+4. Spark Core：内核，是Spark中最重要的内容，相当于Hadoop中MapReduce
+		Spark Core和MapReduce都是进行离线数据分析的
+			SparkCore的核心：RDD（弹性分布式数据集），由分区组成
+
+5. Spark SQL：相当于Hive、Pig
+		支持Sql语句和DSL语句 ——》Spark任务（RDD）-》运行
+
+6. Spark Streaming：相当于Storm（实时数据分析）
+		本质：将连续的数据-》转换成不连续的数据DStream（离散流）：本质还是RDD
+		
+7. spark-shell
+	本地模式:
+		bin/spark-shell 
+	集群模式:
+		bin/spark-shell --master spark://learn:7077
