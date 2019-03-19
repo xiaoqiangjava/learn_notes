@@ -181,5 +181,7 @@
 
 19. netstat -nap |grep pid        --根据PID查看占用的端口号
 
+20. vim中:set nu显示行号, :set nonu  取消显示行号, :set hlsearch 高亮显示, yy复制一行, p粘贴复制的内容
+
 	
 	
