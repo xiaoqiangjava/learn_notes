@@ -5,6 +5,7 @@
 	修改conf下面的配置文件
 	spark-env.sh
 		JAVA_HOME=/data/soft/Java/jdk1.8.0_201   
+		SCALA_HOME=/data/soft/scala/2.11.8   # 不指定也可以运行
 		SPARK_MASTER_HOST=learn    # 当使用Zookeeper做HA时, 不需要指定master地址, 由Zookeeper选举
 		SPARK_MASTER_PORT=7077
 		HADOOP_CONF_DIR=/data/soft/hadoop-2.7.5/etc/hadoop    # 运行spark在yarn上时需要指定Hadoop配置文件地址
@@ -34,3 +35,82 @@
 		bin/spark-shell 
 	集群模式:
 		bin/spark-shell --master spark://learn:7077
+	yarn模式:
+		bin/spark-shell --master yarn
+		启动报错: 当分配的内存较小时, yarn会直接kill掉进程, 修改配置文件即可
+		vi yarn-site.xml
+		<property>
+                <name>yarn.nodemanager.vmem-check-enabled</name>
+                <value>false</value>
+                <description>Whether virtual memory limits will be enforced for containers</description>
+        </property>
+        <property>
+                <name>yarn.nodemanager.vmem-pmem-ratio</name>
+                <value>4</value>
+                <description>Ratio between virtual memory to physical memory when setting memory limits for containers</description>
+        </property>
+	注意: 
+		当以yarn的格式运行时, 读取文件的地址不能是本地文件, 需要指定hdfs上面的文件地址hdfs://learn:9000/xxx
+		
+8. 算子(RDD对象的函数或者方法)是分为两个类型的:
+	> Transformation: 延时计算, 每执行一步, 都会生成一个新的RDD
+		sc.textFile("hdfs://learn:9000") 如果指定的文件不存在, 不会报错, 因为是懒加载, 只有当Action执行时才会触发.
+		flatMap 先map, 在flatten
+		map
+		reduceByKey
+		sortBy
+	> Action: 立即执行
+		collect 
+	RDD之间是存在依赖的: 宽依赖(父RDD与子RDD: 最多一对一), 窄依赖(父RDD与子RDD: 1对多)
+	
+9. 读取json文件生成DataFrame
+	val video = spark.read
+				.json("hdfs://learn:9000/videoCount/videoCount.txt")   # 读取json文件
+				.select("uid", "duration")     # 查询需要的字段
+				.na    	# na: DataFrameNaFunctions, 对DataFrame中值为Null或者NAN的值做处理
+				.fill(0, Array("duration")) # 当字段duration的值为null或者NAN时, 使用0来填充
+				.map(row => (row.getString(0), row.getLong(1)))  # 将每一行的字段转换为tuple
+				.collect
+				.toSeq
+	DataFrameNaFunctions:
+		处理DataFrame中值为Null或者NAN的字段
+		na.fill(0)  # 使用指定的值填充所有值为Null或者NAN的列
+		na.fill("A", Array("col_1", "col_2")).show()  # 当指定的列为null或者NAN时使用A来填充
+		na.drop(1, Seq("col_1", "col_2"))  # 当指定列中不为null或者NAN的值少于一个时, 删除该记录
+		na.drop().show()  # 只用某一行中有一列为null或者NAN, 则丢掉这条记录, 里面调用的是drop("any")
+		na.drop("all").show() # 当某一行中所有的列都为null是丢掉该记录
+		na.drop(Array("col_1", "col_2"))  # 当指定的列有一个为null时丢掉该记录
+		na.drop("all", Array("col_1", "col_2")).show()   # 当指定的列都为null时丢掉该记录
+		na.replace("col_1" :: "col_2" :: Nil, Map("UNKNOW" -> "Tomcat")) # 当col_1, col_2中的值为
+		UNKNOW时, 用Tomcat替换
+		
+10. RDD, DataFrame, DataSet
+	Rdd是SparkCore中的数据抽象, DataFrame和DataSet是SparkSQL的数据抽象. 与RDD相比, DataFrame多了数据
+	的结构信息, 即schema, 知道每列的名称和类型.
+	RDD是分布式的Java对象集合, DataFrame是Row对象的集合. 
+	DataFrame除了提供了比RDD更丰富的算子以外, 更重要的特点是提升执行效率, 减少数据读取以及执行计划的优化.
+	DataFrame性能高主要体现在两个方面:
+	> 定制化的内存管理: 数据以二进制的形式存在于非堆内存, 节省了大量的空间之外, 还摆脱了GC的限制. 
+	> 优化的执行计划: 查询计划通过Spark catalyst optimiser进行优化
+	DataFrame的缺点是编译器缺少安全类型检查.
+	DataSet是DataFrame API的一个扩展, 是Spark最新的数据抽象. 用户友好的API分格, 既具有安全
+	类型检查也具有DataFrame的查询优化特性.
+	DataFrame = DataSet[Row], DataFrame是DataSet的一个特例, 泛型为Row
+
+11. Spark SQL提供了两种方法, 将一个RDD转换为Dataset
+	> 使用case class
+	case class People(name: String, age: Int)
+	sc.textFile("path").map(_.split(",")).map(fileds => People(fileds(0), fileds(1))).toDF
+	> 使用StructType
+	val schema = StructType(Seq(StructFiled("name", StringType, false), StructFiled("age", IntegerType, false)))
+	更高级的写法: 在scala中Nil代表一个空集合, ::是往集合头部插入一个元素
+	val schema = StructType(StructFiled("name", StringType, false) :: StructFiled("age", IntegerType, false) :: Nil)
+		
+		
+		
+		
+		
+		
+		
+		
+		
