@@ -2,10 +2,10 @@
 1. scala中的容器分为可变容器跟不可变容器, 分别在scala.collection.mutable和scala.collection.immutable两个
 	包下面, immutable包里面的元素值不可被修改
 	当immutable包中变量被var修饰时, 可以追加值, 被val修饰时不可追加
-2. 定义函数: val f1 = (x:Int, y:Int) = x + y
+2. 定义函数: val f1 = (x:Int, y:Int) => x + y
 
 3. 定义方法: 需要使用def关键字
-	def m1(x:Int, y:Int): Unit => x + y
+	def m1(x:Int, y:Int): Unit = x + y
 	
 4. Option[Int]类型有0个或者1个值, Some(1) 和 None, 使用flatten方法可以展开Option, 值为None是不会显示
 	例: List(Some(1), None, Some(2), Some(4), None).flatten  => List(1, 2, 4)
@@ -21,3 +21,13 @@
 9. scala中的for循环 for(i <- list)
 
 10. scala中的可变参数name:String*
+
+11. scala中集合的类型：Seq() sub -> Range, ArrayBuffer, List等, Set(), Map(), Iterator()
+
+12. 值 :: list  可以将一个值添加到list的开头位置， 0 :: List(1, 2, 3)得到结果： List(0, 1, 2, 3)
+	值 +：list  同::，可以将一个值添加到list的开头
+	list :+ 值  可以在list的末尾追加一个值
+	list1 ::: list2 可以将两个list合并，合并之后集合元素的顺序跟执行:::操作的顺序保持一致
+	list1 ++ list2  跟:::方法一样
+	
+13. Scala中lazy修饰的变量叫惰性变量，会实现延迟加载，lazy只能修改val定义的变量，变量会在调用变量的时候执行
