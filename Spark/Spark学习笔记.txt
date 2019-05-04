@@ -17,6 +17,8 @@
 3. bin/spark-submit --class org.apache.spark.examples.SparkPi \  # 指定程序运行的主类
 					--master yarn     # spark://host:port, mesos://host:port, yarn, or local.
 					--deploy-mode cluster 
+					--total-executor-cores 2
+					--executor-memory 512m
 					<app-jar>         # 指定程序运行的jar包
 					[app options]	  # 指定程序运行时的参数, 可选
 					
@@ -88,6 +90,26 @@
 	Rdd是SparkCore中的数据抽象, DataFrame和DataSet是SparkSQL的数据抽象. 与RDD相比, DataFrame多了数据
 	的结构信息, 即schema, 知道每列的名称和类型.
 	RDD是分布式的Java对象集合, DataFrame是Row对象的集合. 
+	RDD属性：
+	1> 一组分片（Partition），即数据集的基本组成单位。
+		对于RDD来说，每个分片都会被一个计算任务处理，并决定并行计算的粒度。
+		用户可以在创建RDD时指定分片个数，如果没有指定，那么就会采用默认值。
+		默认值就是程序所分配到的CPU Core的数目。
+	2> 一个计算每个分区的函数
+		Spar中RDD的计算是以分片为单位的，每个RDD都会实现compute函数以达到这个目的。
+		compute函数会对迭代器进行复合，不需要保存每次计算的结果。
+	3> RDD 之间的依赖关系
+		RDD的每次转换都会生成一个新的RDD，所以RDD之间就会形成类似于流水线一样的前后依赖关系。
+		在部分分区数据丢失时，spark可以通过这个依赖关系重新计算丢失的分区数据，而不是对RDD所有分区数据进行重新计算。
+	4> 一个Partitioner，即RDD分片函数
+		当前spark中实现了两种类型的分片函数，一个时基于哈希的HashPartitioner
+		另外一个时基于范围的RangePartitioner。
+		只有对于key-value的RDD，才会有Partitioner, 非key-value的RDD，partitioner为None
+		Partitioner函数不仅决定了RDD本身的分片数量，也决定了parent RDD shuffle时的分片数量
+	5> 一个列表，存储存取每个Partitioner的优先位置（preferred location)
+		对于一个HDFS文件来说，这个列表保存的就是每个Partiton所在的块的位置。
+		按照“移动数据不如移动计算”的概念，Spark进行在进行任务调度的时候，会尽可能的将计算任务
+		分配到其所要处理数据块的存储位置。
 	DataFrame除了提供了比RDD更丰富的算子以外, 更重要的特点是提升执行效率, 减少数据读取以及执行计划的优化.
 	DataFrame性能高主要体现在两个方面:
 	> 定制化的内存管理: 数据以二进制的形式存在于非堆内存, 节省了大量的空间之外, 还摆脱了GC的限制. 
@@ -106,10 +128,31 @@
 	更高级的写法: 在scala中Nil代表一个空集合, ::是往集合头部插入一个元素
 	val schema = StructType(StructFiled("name", StringType, false) :: StructFiled("age", IntegerType, false) :: Nil)
 		
+12. Spark集群启动流程
+	1>. 启动Master进程
+	2>. Mster进程启动之后，会解析slaves配置文件，找到启动Worker的host，然后启动相应的的Worker，并发送注册信息给Worker
+	3>. Worker开始与Master进行注册，把注册信息发送给Master
+	4>. Master收到注册信息后，并保存到内存和磁盘里。Master给Worker发送注册成功的信息（masterUrl）
+	5>. Worker收到Master的URL信息后，开始与Master建立心跳
+
+13. Spark集群任务提交流程
+	1>. Driver端的SparkSubmit进程和Master进程进行通信，创建一个非常重要的对象（SparkContext)
+	2>. Master收到任务信息后，开始资源调度，和所有的Worker进行通信，找到较空闲的Worker，通知Worker启动Executor子进程
+	3>. Executor进程启动之后开始与Driver通信，Driver开始把生成的任务提交到相应的Executor，Executor开始计算任务
 		
-		
-		
-		
+14. checkpoint
+	为什么要做checkpoint？
+		运行出的中间结果往往很重要，所以为了保证数据的安全性，要checkpoint
+		最好把数据checkpoint到HDFS，这样便于该集群所有几点访问到
+		在checkpoint之前最好先cache一下，这样先把数据放到缓存
+		便于运行任务的调用，也便于在checkpoint的时候直接从缓存拿数据
+	在什么时候做checkpoint？
+		在发生shuffle之后做checkpoint
+	checkpoint步骤：
+		1. 建立 checkpoint存储目录
+			sc.setCheckpointDir("hdfs://learn:9000/ck)
+		2. rdd.cache()
+		3. rdd.checkpoint()
 		
 		
 		
