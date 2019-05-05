@@ -397,12 +397,23 @@
 	.frm文件主要存储表结构, 如果知道表结果的话可以不用导入这个文件, 直接创建异常同样表结构的表, 然后解除表空间绑定, 导入备份
 	的.idb文件, 然后将新建表的.frm与新导入的.idb文件发生关联. 恢复数据时, 数据库的版本要一致, 不然会出现row_fromat不匹配的错误. 
 	
-二十八. mysql5.7安装
+	
+二十八. mysql5.7安装: 解压版默认没有用户，需要使用--initialize-insecure --user=mysql来指定
 	1. mysqld install
 	2. mysqld --defaults-file=d:\my.ini --initialize-insecure --user=mysql
 	3. net start mysql启动服务
 	4. ALTER USER 'root'@'localhost' IDENTIFIED BY '123'; 修改密码. 
 	5. mysqldump  -uroot -proot -d sy_xwwt  t_bt_user_info>tllzy1.sql  语句导出文件
+	6. my.ini文件内容：
+		[client]
+		port=3306
+		default-character-set=utf8
+		[mysqld] 
+		# 设置为自己MYSQL的安装目录 
+		basedir=D:\mysql-5.7.20-winx64
+		# 设置为MYSQL的数据目录 
+		datadir=D:\mysql-5.7.20-winx64\data
+		character_set_server=utf8
 	
 二十九. Tomcat远程debug
 	Linux系统下: 修改catalina.sh
