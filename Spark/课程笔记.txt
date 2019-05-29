@@ -1,0 +1,261 @@
+三部分的内容：
+
+1：Spark Core：内核，是Spark中最重要的内容，相当于Hadoop中MapReduce
+		Spark Core和MapReduce都是进行离线数据分析的
+			SparkCore的核心：RDD（弹性分布式数据集），由分区组成
+
+2：Spark SQL：相当于Hive、Pig
+		支持Sql语句和DSL语句 ——》Spark任务（RDD）-》运行
+
+3：Spark Streaming：相当于Storm（实时数据分析）
+		本质：将连续的数据-》转换成不连续的数据DStream（离散流）：本质还是RDD
+		
+		
+********************************Spark Core的课程内容*******************************************************
+一：什么是Spark
+	1：官网（http://spark.apache.org/）
+		Lightning-fast unified analytics engine（快如闪电的计算引擎）
+		Apache Spark™ is a unified analytics engine for large-scale data processing.（apache是大规模数据处理的统一分析引擎）
+	
+	2：为什么要学Spark？讨论MapReduce的缺点和不足？
+			MapReduce：核心Shuffle---> 产生大量I/O
+			
+			
+	3：Spark的特点：基于内存
+		（*）快
+		（*）易用
+		（*）通用
+		（*）兼容性
+
+二：Spark的体系结构和部署（重点）
+	
+	1：Spark的体系结构
+		官网提供了一张图  http://spark.apache.org/docs/latest/cluster-overview.html
+		
+	2：安装部署
+		（*）伪分布环境（bigdata01）
+			前提：Linux环境，JDK版本1.8版本
+			Spark：版本2.2.1
+			Hadoop：版本2.8.3
+			下载地址：http://spark.apache.org/downloads.html
+					  http://archive.apache.org/dist/spark/spark-2.2.1/
+					  
+			解压：tar -zxvf spark-2.2.1-bin-hadoop2.7.tgz -C /opt/modules/
+			
+				目录介绍		
+					drwxrwxr-x 2 1001 1001  4096 Nov 24  2017 bin			->运行脚本目录
+					drwxrwxr-x 2 1001 1001  4096 Nov 24  2017 conf			->配置文件
+					drwxrwxr-x 5 1001 1001  4096 Nov 24  2017 data			->数据，自带例子的数据
+					drwxrwxr-x 4 1001 1001  4096 Nov 24  2017 examples		->Spark自带的一些例子的源码
+					drwxrwxr-x 2 1001 1001 12288 Nov 24  2017 jars			->jar包，第三方的的jar文件
+					-rw-rw-r-- 1 1001 1001 17881 Nov 24  2017 LICENSE		
+					drwxrwxr-x 2 1001 1001  4096 Nov 24  2017 licenses		
+					-rw-rw-r-- 1 1001 1001 24645 Nov 24  2017 NOTICE		
+					drwxrwxr-x 8 1001 1001  4096 Nov 24  2017 python		->对python语言支持的适配
+					drwxrwxr-x 3 1001 1001  4096 Nov 24  2017 R				->对R语言支持的适配
+					-rw-rw-r-- 1 1001 1001  3809 Nov 24  2017 README.md
+					-rw-rw-r-- 1 1001 1001   128 Nov 24  2017 RELEASE
+					drwxrwxr-x 2 1001 1001  4096 Nov 24  2017 sbin			->集群启停，因为spark有自带的集群环境
+					drwxrwxr-x 2 1001 1001  4096 Nov 24  2017 yarn			->对yarn支持的一些安装包
+			
+			修改配置文件：
+				/opt/modules/spark-2.2.1-bin-hadoop2.7/conf
+					spark-env.sh：
+						export JAVA_HOME=/opt/modules/jdk1.8.0_11
+						export SPARK_MASTER_HOST=bigdata01
+						export SPARK_MASTER_PORT=7077
+						
+					slaves：
+						bigdata01
+			
+			
+			启动：
+				sbin/start-all.sh
+				
+			验证：
+				输入地址：http://bigdata01:8080/
+				Spark Web Console （内置了Tomcat：8080）
+			
+		（*）全分布的环境
+			Master主节点：bigdata01
+			Worker从节点：bigdata02、bigdata03
+			
+			修改配置文件：
+				/opt/modules/spark-2.2.1-bin-hadoop2.7/conf
+					spark-env.sh：
+						export JAVA_HOME=/opt/modules/jdk1.8.0_11
+						export SPARK_MASTER_HOST=bigdata01
+						export SPARK_MASTER_PORT=7077
+					
+					slaves：
+						bigdata02
+						bigdata03
+			
+			复制到从节点上：
+				scp -r spark-2.2.1-bin-hadoop2.7/ bigdata02:/opt/modules/
+				scp -r spark-2.2.1-bin-hadoop2.7/ bigdata03:/opt/modules/
+			
+			
+			在主节点上启动
+			
+			[root@bigdata01 spark-2.2.1-bin-hadoop2.7]# sbin/start-all.sh 
+			org.apache.spark.deploy.master.Master running as process 2135.  Stop it first.
+			bigdata03: starting org.apache.spark.deploy.worker.Worker, logging to /opt/modules/spark-2.2.1-bin-hadoop2.7/logs/spark-root-org.apache.spark.deploy.worker.Worker-1-bigdata03.out
+			bigdata02: starting org.apache.spark.deploy.worker.Worker, logging to /opt/modules/spark-2.2.1-bin-hadoop2.7/logs/spark-root-org.apache.spark.deploy.worker.Worker-1-bigdata02.out
+
+			根据日志分析：启动了一个主节点，两个从节点
+			
+			http://bigdata01:8080/  是spark webui的监控页面地址
+			spark://bigdata01:7077	这是spark主节点的rpc通信接口
+			
+			
+		（*）HA的环境：有两种方式
+			（1）基于文件目录：用于开发测试环境（单机环境）
+				（*）将worker和application状态写入一个目录
+				（*）如果出现崩溃，从该目录进行恢复
+				（*）在bigdata01上面进行配置
+					1）创建一个恢复目录：/opt/modules/spark-2.2.1-bin-hadoop2.7/recovery
+					2）修改配置文件：spark-env.sh：
+						export SPARK_DAEMON_JAVA_OPTS="-Dspark.deploy.recoveryMode=FILESYSTEM -Dspark.deploy.recoveryDirectory=/opt/modules/spark-2.2.1-bin-hadoop2.7/recovery"
+				
+			（2）基于ZooKeeper：用于生产环境
+				前提：搭建zookeeper、同时启动zookpeer
+					Master节点：bigdata01、bigdata02
+					Worker节点：bigdata02、bigdata03
+					
+					修改
+					spark-env.sh：
+						export JAVA_HOME=/opt/modules/jdk1.8.0_11
+						export SPARK_DAEMON_JAVA_OPTS="-Dspark.deploy.recoveryMode=ZOOKEEPER -Dspark.deploy.zookeeper.url=bigdata01:2181,bigdata02:2181,bigdata03:2181 -Dspark.deploy.zookeeper.dir=/spark"
+
+					slaves：
+						bigdata02
+						bigdata03
+						
+				启动bigdata01
+					sbin/start-all.sh
+					
+				需要手动启动bigdata02上的master
+					sbin/start-master.sh
+	
+三：执行Spark Demo程序
+
+	1：执行Spark任务的工具
+		（*）spark-submit：相当于hadoop jar 命令->递交一个MapReduce任务（jar文件）
+							Spark也是递交一个任务（jar文件）
+							
+			使用Spark提供的Example例子：
+				/opt/modules/spark-2.2.1-bin-hadoop2.7/examples/src/main/scala/org/apache/spark/examples/
+			
+			命令：./spark-submit --master spark://bigdata02:7077 --class org.apache.spark.examples.SparkPi /opt/modules/spark-2.2.1-bin-hadoop2.7/examples/jars/spark-examples_2.11-2.2.1.jar 200
+				18/09/20 15:04:07 INFO TaskSchedulerImpl: Removed TaskSet 0.0, whose tasks have all completed, from pool 
+				18/09/20 15:04:07 INFO DAGScheduler: ResultStage 0 (reduce at SparkPi.scala:38) finished in 9.032 s
+				18/09/20 15:04:07 INFO DAGScheduler: Job 0 finished: reduce at SparkPi.scala:38, took 9.924712 s
+				Pi is roughly 3.141759357087968
+			
+		（*）spark-shell：类似于scala的REPL命令行，类似于Oracle的SQL*PLUS工具
+			
+			（1）本地模式 
+				命令：bin/spark-shell
+				日志：
+					Spark context Web UI available at http://192.168.137.101:4040
+					Spark context available as 'sc' (master = local[*], app id = local-1537474416025).
+					Spark session available as 'spark'.
+					
+				master = local[*]表示本地模式，[*]表示默认占用worker节点所有资源，[2]启动2个线程
+				
+				本地模式启动，在集群监控页面看不到正在运行的applications
+				
+				开发程序: ****.setMaster("local")
+			
+			（2）集群模式 
+				命令：bin/spark-shell --master spark://bigdata01:7077,bigdata02:7077
+				日志：
+					Spark context Web UI available at http://192.168.137.101:4040
+					Spark context available as 'sc' (master = spark://bigdata01:7077,bigdata02:7077, app id = app-20180920161909-0001).
+					Spark session available as 'spark'.
+				
+				master = spark://bigdata01:7077,bigdata02:7077表示启动了集群环境
+				
+		
+			（3）写一个词频统计程序
+
+				scala> sc.textFile("hdfs://bigdata01:9000/input/words").flatMap(x=>x.split(" ")).map((_, 1)).reduceByKey(_+_).sortBy(-_._2).collect
+				res4: Array[(String, Int)] = Array((hello,4), (spark,3), (hdoop,2), (hive,1), (java,1), (hadoop,1), (hbase,1))
+
+				将统计出来的结果保存到hdfs
+				scala> sc.textFile("hdfs://bigdata01:9000/input/words").flatMap(x=>x.split(" ")).map((_, 1)).reduceByKey(_+_).sortBy(-_._2).saveAsTextFile("hdfs://bigdata01:9000/output/0920-01")
+
+				我们能不能只产生一个分区呢？				
+				scala> sc.textFile("hdfs://bigdata01:9000/input/words").flatMap(x=>x.split(" ")).map((_, 1)).reduceByKey(_+_).sortBy(-_._2).repartition(1).saveAsTextFile("hdfs://bigdata01:9000/output/0920-02")
+
+			（4）单步运行分析WordCount（每一步执行的时候，都会产生一个新的RDD）
+				val rdd1 = sc.textFile("hdfs://bigdata01:9000/input/words")
+			
+				scala> val rdd1 = sc.textFile("hdfs://bigdata01:9000/input/words") 延时加载数据了
+				rdd1: org.apache.spark.rdd.RDD[String] = hdfs://bigdata01:9000/input/words MapPartitionsRDD[55] at textFile at <console>:24
+
+				scala> val rdd2 = rdd1.flatMap(_.split(" ")) 将每句话进行分词，在合并到一个集合（Array）faltten+Map
+				rdd2: org.apache.spark.rdd.RDD[String] = MapPartitionsRDD[60] at flatMap at <console>:26
+				
+				scala> val rdd3 = rdd2.map(x => (x, 1)) 每个单词记一次数，简单的写法：rdd2.map((_, 1))
+				rdd3: org.apache.spark.rdd.RDD[(String, Int)] = MapPartitionsRDD[61] at map at <console>:28
+				
+				scala> val rdd4 = rdd3.reduceByKey(_+_) 把相同key的值进行累加，类似于Group的操作
+				rdd4: org.apache.spark.rdd.RDD[(String, Int)] = ShuffledRDD[62] at reduceByKey at <console>:30
+				
+				scala> val rdd5 = rdd4.sortBy(_._2) 根据累加的值进行排序
+				rdd5: org.apache.spark.rdd.RDD[(String, Int)] = MapPartitionsRDD[67] at sortBy at <console>:32
+
+				scala> rdd5.collect  这是一个Action的算子，会立即触发计算
+				res8: Array[(String, Int)] = Array((hello,4), (spark,3), (hdoop,2), (hadoop,1), (hbase,1), (hive,1), (java,1))
+				
+				总结：
+					算子（RDD对象的函数或者方法）是分为两个类型的：
+						1）Transformation：延时计算
+							textFile
+							flatMap
+							map
+							reduceByKey
+							sortBy
+						2）Action：会立即触发计算
+							collect
+							
+					RDD之间是存在依赖的：宽依赖、窄依赖
+					
+		2：使用IDEA或者SCALA IDE工具进行开发程序：WordCount
+			
+			（*）使用Java语言开发一个WordCount程序
+			
+				1）企业中也有使用Java来做Spark开发的
+				2）如果实现同样的功能，java vs scala
+				bin/spark-submit --master spark://bigdata01:7077,bigdata02:7077 --class JavaWordCount /opt/jars/SparkDemo-1.0-SNAPSHOT.jar hdfs://bigdata01:9000/input/words hdfs://bigdata01:9000/output/0920-03
+
+				
+			（*）使用java lambda实现一个WordCount开发
+				bin/spark-submit --master spark://bigdata01:7077,bigdata02:7077 --class JavaLambdaWC /opt/jars/SparkDemo-1.0-SNAPSHOT.jar hdfs://bigdata01:9000/input/words hdfs://bigdata01:9000/output/0920-04
+
+				
+			（*）使用scala版本实现一个WordCount开发
+				
+				bin/spark-submit --master spark://bigdata01:7077,bigdata02:7077 --class ScalaWordCount /opt/jars/SparkDemo-1.0-SNAPSHOT-shaded.jar hdfs://bigdata01:9000/input/words hdfs://bigdata01:9000/output/0920-05
+
+			
+四：Spark的执行原理
+	
+	1：分析WordCount程序的处理过程
+	
+	2：Spark任务递交的流程，类似于Yarn调度任务的过程
+	
+五：Spark的RDD以及RDD的算子（函数、方法）
+	
+	1：什么是RDD（非常重要）
+	
+	2：RDD的算子（函数、方法）
+		（1）Transformation：不会立即触发计算，延时计算（Lazy）
+		
+		（2）Action：会立即触发计算
+		
+六：Spark Core的编程案例
+	1：获取最受欢迎的老师（TopN）
+	
