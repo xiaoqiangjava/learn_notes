@@ -214,3 +214,11 @@
 	4>. service ntpd start  启动 
 	5>. chkconfig ntpd on   配置开机启动
 	6>. ntpdate learn       编写定时任务crontab，使用命令ntpdate learn, 表示从learn服务器同步时间
+
+11. 克隆虚拟机需要修改的地方：
+	1> /etc/udev/rules.d/70-persistent-ipoib.rules 删除文件中原来的数据，将eth1修改为eth0, 记录网卡地址，在设置静态ip的时候使用
+	2> vi /etc/sysconfig/network-scripts/ifcfg-ens33 修改网卡地址：HWADDR为上面记录的网卡地址, 以及ip地址
+	3> /etc/sysconfig/network     
+		NETWORKING=yes    
+		HOSTNAME=learn
+	4> reboot重启机器
