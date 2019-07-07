@@ -1,0 +1,2 @@
+							HDFS学习笔记
+1. HDFS是Hadoop Distributed File System，

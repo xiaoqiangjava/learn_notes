@@ -1,0 +1,26 @@
+-----------------------------------------mysql5.7.20安装过程----------------------------------------------------------------
+第一步： 运行命令删除mysql服务： mysqld --remove
+第二步:  mysql5.7.20下面没有data文件夹， 需要在安装前初始化该文件夹， 运行命令： mysqld --initialize-insecure --user=mysql
+		 该命令生成root用户名没有密码， 如果只运行mysqld --initialize, 会生成随机密码
+第三部： 安装mysql服务： mysqld --install MySQL --defaults-file="此处是安装路径，必须写在双引号中， 负责没法安装"， 在
+		 安装前新建my.ini文件， 修改其中的内容， 防止乱码， my.ini文件的内容如下：
+		 
+		 
+[client]
+port=3306
+default-character-set=utf8
+
+[mysql]
+port=3306
+default-character-set=utf8
+
+[mysqld]
+port=3306
+default-storage-engine=INNODB
+character-set-server=utf8
+collation-server=utf8_general_ci
+
+basedir=E:\develop tools\mysql-5.7.20-winx64
+datadir=E:\develop tools\mysql-5.7.20-winx64\data
+
+sql_mode=NO_ENGINE_SUBSTITUTION,NO_AUTO_CREATE_USER

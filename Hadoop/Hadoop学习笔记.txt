@@ -24,8 +24,12 @@
 	3> YARN: 是一个资源调度平台, 负责给计算框架分配计算资源
 		主从结构:
 			ResourceManager: 集群资源的分配跟调度
-							 只要实现ApplicationMaster接口才能被ResourceManager管理, 比如:MapReduce, Storm, Flink, Spark.							 
-			NodeManager: 单节点资源的管理
+							 只要实现ApplicationMaster接口才能被ResourceManager管理, 比如:MapReduce, Storm, Flink, Spark.
+							启动和监控Application Master，监控NodeManager。
+			NodeManager: 单节点资源的管理，处理ResourceManager的命令，处理来自APP Master的命令。
+				NodeManager包含两个组件：
+				Application Master: 任务调度，数据切分，为应用程序申请资源，并分配给内部任务、任务监控和容错。
+				Container：对任务运行环境的抽象，封装了CPU，内存等多维资源以及环境变量、启动命令等任务运行相关信息
 3. Hadoop伪分布式集群搭建
 	1> 准备Linux环境: Java, 静态ip, hostname, hosts, iptables, chkconfig, ssh, 免密登录
 		Java: export PATH=$PATH:$JAVA_HOME
@@ -43,6 +47,8 @@
 		yarn-env.sh
 			export JAVA_HOME=/data/soft/java/jdk_1.8.0_191
 			export YARN_LOG_DIR=/data/hadoop_repo/logs/yarn
+		mapred-env.sh 
+			export JAVA_HOME=/data/soft/java/jdk_1.8.0_191
 		core-site.xml
 			<configuration>
 				<property>
@@ -67,12 +73,51 @@
 					<name>yarn.nodemanager.aux-services</name>
 					<value>mapreduce_shuffle</value>   <!-- 表示yarn上运行的是MapReduce程序 -->
 				</property>
+				<property>
+					<name>yarn.resourcemanager.hostname</name>  <!-- 配置resourcemanager地址 -->
+					<value>learn</value>
+					<value></value>
+				</property>
+				<!-- 开启日志聚合 -->
+				<property>
+						<name>yarn.log-aggregation-enable</name>
+						<value>true</value>
+				</property>
+				<property>
+						<name>yarn.log.server.url</name>
+						<value>http://learn:19888/jobhistory/logs/</value>
+				</property>
+				<!-- 配置日志过期时间,单位秒 -->
+				<property>
+						<name>yarn.log-aggregation.retain-seconds</name>
+						<value>86400</value>
+				</property>
+				<!-- 当运行spark-shell master yarn时, 如果内存资源给的过小, yarn直接kill掉进程, 加下面的两个配置即可 -->
+				<property>
+						<name>yarn.nodemanager.vmem-check-enabled</name>
+						<value>false</value>
+						<description>Whether virtual memory limits will be enforced for containers</description>
+				</property>
+				<property>
+						<name>yarn.nodemanager.vmem-pmem-ratio</name>
+						<value>4</value>
+						<description>Ratio between virtual memory to physical memory when setting memory limits for containers</description>
+				</property>
 			</configuration>
 		mapred-site.xml    mv mapred-site.xml.template mapred-site.xml
 			<configuration>
 				<property>
 					<name>mapreduce.framework.name</name>
 					<value>yarn</value>
+				</property>
+				<!-- 配置历史服务器，查看日志 -->
+				<property>
+					<name>mapreduce.jobhistory.address</name>
+					<value>http://learn:10020</value>
+				</property>
+				<property>
+					<name>mapreduce.jobhistory.webapp.address</name>
+					<value>http://learn:19888</value>
 				</property>
 			</configuration>
 		slaves
@@ -95,6 +140,16 @@
 	yarn application -kill <application_id>
 	
 6. 启动historyserver进程: 该进程的作用是把之前本来散落在nodemanager节点上面的日志统计收集到hdfs上面的指定目录中
+	修改mapred-site.xml
+	<!-- 配置历史服务器，查看日志 -->
+	<property>
+		<name>mapreduce.jobhistory.address</name>
+		<value>http://learn:10020</value>
+	</property>
+	<property>
+		<name>mapreduce.jobhistory.webapp.address</name>
+		<value>http://learn:19888</value>
+	</property>
 	修改集群配置yarn-site.xml文件:
 	<property> 
 		<name>yarn.log-aggregation-enable</name>  
@@ -110,5 +165,52 @@
 7. 提交MapReduce任务到Hadoop集群:
    hadoop jar mapreduce-learn-1.0.0.jar com.xq.mapreduce.WordCount /inputpath /outputpath
    hadoop [command | classname] 输入路径 输出路径	
+   
+8. 配置文件说明：
+	默认的配置文件存放位置：
+	[core-default.xml]  --> 
+		${HADOOP_HOME}/share/hadoop/common/hadoop-common-2.7.5.jar/core-default.xml
+	[hdfs-default.xml]  --> 
+		${HADOOP_HOME}/share/hadoop/hdfs/hadoop-hdfs-2.7.5.jar/hdfs-default.xml
+	[yarn-default.xml]  --> 
+		${HADOOP_HOME}/share/hadoop/yarn/hadoop-yarn-common-2.7.5.jar/yarn-default.xml
+	[mapred-default.xml]-->
+		${HADOOP_HOME}/share/hadoop/mapreduce/hadoop-mapreduce-client-core-2.7.5.jar/mapred-default.xml
+	自定义配置文件存放位置：${HADOOP_HOME}/etc/hadoop
+	core-site.xml   
+	hdfs-site.xml
+	yarn-site.xml
+	mapred-site.xml
+
+9. 分布式集群搭建
+	在伪分布式的基础上修改：
+	hdfs-site.xml
+		<property>
+			<name>dfs.replication</name>
+			<value>3</value>   <!-- 分布式datanode节点 -->
+		</property>
+		<property>
+			<name>dfs.namenode.secondary.http-address</name>
+			<value>http://lear1:50090</value>
+		</property>
+	slaves   datanode节点host
+		learn1
+		learn2
+		learn3
+	使用rsync命令，编写同步脚本，将配置文件同步到其他所有几点上面。
+	在NameNode节点上面执行脚本：sh start-dfs.sh  启动所有的NameNode，SecondaryNameNode和DataNode
+	在ResourceManager节点上面执行脚本：sh start-yarn.sh  启动所有的ResourceManager和NodeManager
 	
-		
+10. 时间同步
+	使用ntp同步时间，rpm -qa|grep ntp 查看是否安装了ntp 
+	1>. 修改/etc/ntp.conf配置文件:
+	restrict 192.168.1.0 mask 255.255.255.0 nomodify notrap  放开注释
+	新增：
+	server 127.127.1.0
+	fudge 127.127.127.1.0 stratum 10 
+	2>. vi /etc/sysconfig/ntpd
+	新增：SYNC_HWCLOCK=yes
+	3>. service ntpd status 查看状态
+	4>. service ntpd start  启动 
+	5>. chkconfig ntpd on   配置开机启动
+	6>. ntpdate learn       编写定时任务crontab，使用命令ntpdate learn, 表示从learn服务器同步时间

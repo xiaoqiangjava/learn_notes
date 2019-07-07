@@ -154,6 +154,6 @@
 		2. rdd.cache()
 		3. rdd.checkpoint()
 		
-		
+15. 使用spark连接jdbc时，本地运行可以不指定driver信息，但在集群上面运行时需要指定driver信息，否则报错	
 		
 		

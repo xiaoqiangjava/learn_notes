@@ -80,6 +80,8 @@
 		scp 11.py user@remote:Desktop/11.py  将本地文件拷贝到远程服务器，不以/开头表示相对路径，这里的相对路径是相对用户的家目录
 		scp user@remote:Desktop/22.py 22.py  将远程服务器上面的文件拷贝到本地文件系统的当前目录
 	5>. FileZilla是Windows系统下面使用的一种FTP客户端，可以将文件上传到远程服务器，使用的是FTP协议而不是SSH，默认端口号21
+	6>. rsync source target     # -r递归同步，-l拷贝符号，-v显示过程     远程同步工具 
+		rsync -rvl /opt/etc/profile user@remote:/etc   将本地文件和远程服务器同步
 	
 7. 系统权限相关命令
 	1>. ls -l 可以详细显示文件或文件夹的权限。
@@ -163,9 +165,10 @@
 	4.> rar -v test.rar   列出rar文件的内容
 12. vi编辑器常用命令：
 	1.> nyy  复制当前行以及其后的n行
-	2.> p    粘贴缓存区中的内容
+	2.> p    粘贴缓存区中的内容，需要注意的是从外部桌面拷贝的数据，无法使用p粘贴
 	3.> dd   删除光标所在的行，ndd删除光标以及其后的n行
 	4.> v    打开可视化， 使用方向键选择文本，使用y复制，使用p粘贴到当前光标所在字符之后
+	5.> D    删除光标到行末尾的所有数据
 	
 13. nslookup -vc 域名 8.8.8.8  获取域名对应的ip
 
@@ -183,5 +186,22 @@
 
 20. vim中:set nu显示行号, :set nonu  取消显示行号, :set hlsearch 高亮显示, yy复制一行, p粘贴复制的内容
 
-	
-	
+21. basename <filename> [suffix]    # 获取文件名称
+	basename /opt/etc/profile       # 返回profile
+	basename /opt/etc/yum.repos.d .d # yum.repo 
+
+22. dirname <filename>     			# 获取上级目录的绝对路径
+	dirname /opt/etc/profile        # /opt/etc, 在shell编程中可以通过$0得到当前脚本的名称，然后可以通过:
+									  $(cd dirname $0;pwd)获取脚本绝对路径 
+
+23. crontab [options] file          # 定时执行文件file中的任务
+	crontab -l 						# 列出正在实行的定时任务
+	crontab -e     					# 编辑定时任务文件
+	crontab -u 						# 定义执行定时任务的用户
+	crontab -r 						# 删除用户的定时任务
+	所有的定时任务都在文件：/var/spool/cron/<username>     文件里面，删除定时任务时只需要删除该文件中对应的一行数据即可
+	删除定时任务：sed -i '/匹配字符/d' /var/spool/cron/<username>
+	echo '*/1 * * * * echo "haha" >> /opt/test1.cron' >> /var/spool/cron/root   可以追加定时任务
+	追加定时任务时只需要将定时任务写到 /var/spool/cron/<username>文件中 
+
+24. date -s "2019-07-07 23:23:23" 修改时间

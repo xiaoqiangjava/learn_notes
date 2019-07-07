@@ -1,0 +1,20 @@
+					SpringMVC 请求流程
+1. SpringMVC中的Servlet是HttpServletBean，该类继承自HttpServlet，实现了HttpServlet中的init()方法，做了一部分初始化的操作。
+	HttpServletBean是SpringMVC直接对接Tomcat容器的API。SpringMVC中配置的Servlet是DispatcherServlet，该servlet初始化时会
+	调用父类HttpServletBean中的init()方法。
+
+2. HttpServletBean只重写了HttpServlet中的init()方法，其他的两个Servlet生命周期相关的方法service()和destroy()由HttpServletBean的
+	子类FrameworkServlet间接继承。HttpServlet中service方法实现了Servlet中的service()方法，是http请求的入口类，在HttpServlet的
+	实现中，将不同的请求转发到了不同的方法doGet(), doPost()等，因此在Spring中FrameworkServlet中也实现了相应的doGet等方法，并且
+	多出来一个PATCH请求，在FrameworkServlet的具体实现中，所有方式的请求（doGet, doPost, doDelete, doPut等）实现都是相同的，使用
+	processRequest(HttpServletRequest request, HttpServletResponse response)将请求转发的到doService(request, response)去执行，而
+	doService方法在FrameworkServlet中是一个空方法，具体的实现由Spring最核心的DispatcherServlet去做请求转发。
+
+3. DispatcherServlet是Spring处理所有请求的核心部分。具体执行请求的方法是
+	*****doDispatcher(HttpServletRequest request, HttpServletResponse response)*****
+	请求执行步骤：
+	> 1. 检查请求是否是MultipartRequest，执行方法是checkMultipart(request);
+	> 2. 确定处理该次请求的Handler，执行方法是getHandler(processedRequest);
+	> 3. 根据已经找到的Handler确定具体处理该次请求的适配器，执行方法是getHandlerAdapter(mappedHandler.getHandler());
+	> 4. handlerAdapter使用反射机制调用具体的Controller方法，执行方法是ModelAndVeiw ha.handler(request, response, hander)
+	> 5. 将反射调用得到的ModelAndView交给ViewResolver视图处理器渲染
