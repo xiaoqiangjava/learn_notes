@@ -1,2 +1,128 @@
 							HDFS学习笔记
-1. HDFS是Hadoop Distributed File System，
+1. HDFS是Hadoop Distributed File System，用来存储文件，通过目录树来定位文件，其次他是分布式的，由很多个datanode来存储
+	数据。HDFS的设计适合一次写入，多次读取的场景，并且不支持文件的修改，适合用来做数据分析，并不适合用来做网盘应用。
+2. HDFS的有点：
+	1>高容错性：数据自动保存多分副本，通过增加副本数量提高容错性，某一个副本丢失后可以自动恢复。
+	2>适合大数据处理：可以通过动态的增加DataNode节点数量来增加大数据量的存储
+	3>流失数据访问，能保证数据的唯一性
+	4>可以构建在廉价机器上面，通过多副本机制，提高高可靠性能
+3. HDFS的缺点：
+	1>不适合低延时数据的访问，比如毫秒级的存储数据是做不到的
+	2>无法高效的对大量小文件进行存储：存储小文件会占用NameNode大量的内存存储文件，目录，块信息，这是不可取的，NameNode在集群中
+	只有一个节点，资源是非常宝贵的。其次小文件的寻址时间会超过读取时间，违反了HDFS的设计目标
+	3>不支持并发写入，文件随机修改：一个文件只能由一个线程写，不支持多个线程同时写，其次只支持append，不支持文件的随机修改。
+4. HDFS的组成：
+	1> NameNode
+		NameNode主要存储的是数据的目录结构，称作命名空间，以及元信息，负责与用户交互，是整个文件系统的管理节点。
+		用户请求进入时，通过其存储的数据块（block，默认128M）列表信息快速的定位存储数据的节点信息
+	2> SecondaryNameNode
+		并不是NameNode的热备，当NameNode挂掉的时候他并不能马上替换NameNode，提供服务。
+		其作用是辅助NameNode，分担其工作量，定期合并Fsimage和Edits，并推送给NameNode。在紧急情况下可辅助恢复NameNode。
+	3> DataNode
+		存储实际的数据块，负责数据块的读写操作。
+5. HDFS中block中的大小默认是128M，这个值是由磁盘速率决定的。因为block的寻址时间是10ms，寻址时间为读写block的时间的1%时为
+	最佳状态，即读取block的时间是1s, 当前磁盘的读写速率普遍为100MB/s。
+6. 节点距离：两个节点到达最近的共同祖先的距离总和。
+7. 机架感知：副本节点选择--是否是同一个机架由是否是同一个交换机或者路由决定
+	第一个副本在Client所处的节点上，如果客户端在集群外，随机选取一个。
+	第二个副本和第一个副本位于相同的机架，随机选取一个。
+	第三个副本位于不同的机架，随机节点。
+8. FSImage: NameNode中存储的元数据信息进行序列化以后形成的文件。
+   Edits: 对NameNode中元数据更新的每一步操作，同样记录元数据信息。
+   NameNode不会没次修改都将元数据信息进行序列化然后写进FSImage文件中，为了防止数据丢失，将每次修改记录以及元数据都放到
+   Edits文件中，每隔一段时间会写一次FSImage文件以提高性能以及吞吐量。
+9. NameNode工作机制：
+	NameNode启动的时候会加载FSImage和Edits文件到内存中，客户端对元数据的增删改请求都会记录到edits文件中，edits文件中不会
+	记录查询的操作。edits文件会随着时间越来越多，再次启动NameNode时加载速度会很慢，所以需要将所有的Edits文件进行一个合并
+	操作，该操作由SecondaryNameNode来完成，SecondaryNameNode向NameNode请求是否需要checkpoint（需要满足两个条件：1.定时时间
+	到；2.edits中的数据满了），如果需要checkpoint将edits和fsimage文件合并，则NameNode会对当前正在编写的edits文件进行一次滚动，
+	生成新的edits.inprogress文件继续记录客户端操作，其他的edits文件以及fsimage文件会被SecondaryNameNode加载自己的内存中，按照
+	edits文件记录以及上次合成的fsimage文件将未合并的edits文件合并到fsimage中，重命名为fsimage.chkpoint文件，合并完成之后
+	SecondaryNameNode将新的fsimage.chkpoint文件传输到NameNode节点，NameNode替换NameNode中原有的fsImage文件。下次NameNode重
+	启时就不需要加载已经合并了的edits文件，只需要加载未合并的edits文件以及生成的fsimage文件。
+	默认checkpoint定时时间为1小时，edits的条数是100w条
+10. FSImage和Edits文件在NameNode的命名空间中，初始化的时候有指定name和data以及namesecondary的目录。
+11. 如何查看fsimage以及edits文件中的内容：
+	hdfs oiv [options] -i inputfile -o outputfile      # 查看fsimage文件。-p XML可以将文件转成XML文件  oiv: offline image view
+	hdfs oev [options] -i inputfile -o outputfile      # 查看edits文件。-p XML可以将文件转成XML文件	   oev: offline edits view
+12. fsimage文件存储的元数据信息：
+	<!-- 文件夹元数据 -->
+	<inode>
+		<id>16405</id>
+		<type>DIRECTORY</type>
+		<name>root</name>
+		<mtime>1562491727303</mtime>
+		<permission>root:supergroup:rwxrwx---</permission>
+		<nsquota>-1</nsquota>
+		<dsquota>-1</dsquota>
+	</inode>
+	<!-- 文件元数据 -->
+	<inode>
+		<id>16663</id>
+		<type>FILE</type>
+		<name>hbase.version</name>
+		<replication>1</replication>
+		<mtime>1552407001367</mtime>
+		<atime>1556458854770</atime>
+		<perferredBlockSize>134217728</perferredBlockSize>  <!-- 块的大小，没有修改默认128M -->
+		<permission>root:supergroup:rw-r--r--</permission>
+		<blocks>   <!-- 当前文件的块列表信息 -->
+			<block>
+				<id>1073741970</id>
+				<genstamp>1146</genstamp>
+				<numBytes>7</numBytes>
+			</block>
+		</blocks>
+	</inode>
+13. 手动滚动edits文件：hdfs dfsadmin -rollEdits  执行命令后会生成新的edits文件，edits_inprogress文件会变成一个空文件。
+14. fsimage文件和edits文件名称中的编号是同一个编号，edits记录每次修改的编号区间，fsimage文件名中的编号是上次SecondaryNameNode
+	合并完成之后的edits序号，下次重启NameNode时根据这个编号以及seen_txid文件中记录的当前edits文件编号来确定加载哪些edits文件。
+	每次合并都不会删除edits文件，提高高可靠性。
+15. checkpoint时间设置：
+	hdfs-default.xml文件中设置了checkpoint的时间间隔以及edits操作次数的检查时间间隔，默认超过100w时触发一次checkpoint操作
+	<property>
+		<name>dfs.namenode.checkpoint.period</name>
+		<value>3600</value>
+		<description>The number of seconds between two periodic checkpoints.</description>
+	</property>
+
+	<property>
+		<name>dfs.namenode.checkpoint.txns</name>
+		<value>1000000</value>
+	</property>
+	<property>
+		<name>dfs.namenode.checkpoint.check.period</name>
+		<value>60</value>   <!-- 一分钟检查一次edits次数是否达到了100W次 -->
+	</property>
+16. NameNode故障处理：
+	方法一：将SecondaryNameNode中的数据拷贝到NameNode存储数据的目录
+	方法二：使用-importCheckpoint选项启动NameNode守护进程，从而将SecondaryNameNode中的数据拷贝到NameNode，需要修改配置：
+	1> 修改配置文件
+	hdfs-site.xml 
+	<property>
+		<name>dfs.namenode.checkpoint.period</name>
+		<value>3600</value>
+	</property>
+	<property>
+		<name>dfs.namenode.name.dir</name>
+		<value>file://${hadoop.tmp.dir}/dfs/name</value>
+	</property>
+	2> 如果SecondaryNameNode跟NameNode不在同一个节点，需要将namesecondary文件夹拷贝到NameNode的name目录同级，并删除in_use.lock
+	3> 使用hdfs namenode -importCheckpoint导入检查点数据，当没有日志刷新时手动Crtl+C结束掉
+	4> hadoop-daemon.sh start namenode
+17. 集群安全模式：DataNode向NameNode汇报其存储的块列表信息
+	NameNode启动时，首先将fsimage文件载入内存，并执行编辑文件中的各项操作，将edits文件和fsimage文件合并，一旦内存中成功建立
+	文件系统元数据的映射，则创建一个新的fsimage文件和一个空的edits文件。此时NameNode开始监听DataNode请求，NameNode开启安全模式
+	即此时文件系统对于集群来说是只读的，不能进行写操作。
+	系统中的数据块的位置并不是由NameNode维护的，而是以块列表的形式存储在DataNode中。在系统正常操作期间，NameNode会在内存中
+	保存所有块位置的映射信息。在安全模式下，各个DataNode会向NameNode发送最新的块列表信息，NameNode了解到足够到的块列表信息
+	之后，即可高效运行文件系统，如果满足“最小副本条件”，NameNode会在30s之后推出安全模式。所谓最小副本条件是指整个文件系统
+	中99.99%的块都满足最少有一个副本映射关系。
+	查看集群安全模式状态： hdfs dfsadmin -safemode get/enter/leave/wait     获取安全模式状态/进去安全模式/退出安全模式
+	wait用来监控安全模式，用于当安全模式退出时执行什么操作
+18. NameNode多目录配置：可以将NameNode的工作目录配置到不同的磁盘上面，提高可靠性，当其中一个磁盘坏掉之后可以从另一个读取
+	hdfs-site.xml
+	<property>
+		<name>dfs.namenode.name.dir</name>
+		<value>file://${hadoop.tmp.dir}/dfs/name,file://${hadoop.tmp.dir}/dfs/name</value>
+	</property>
