@@ -126,3 +126,40 @@
 		<name>dfs.namenode.name.dir</name>
 		<value>file://${hadoop.tmp.dir}/dfs/name,file://${hadoop.tmp.dir}/dfs/name</value>
 	</property>
+19. 刷新NameNode节点：hdfs dfsadmin -refreshNodes   目的是读取dfs.hosts白名单文件
+	hdfs-site.xml
+	<property>  <!-- 配置白名单，只有白名单中的节点才可以连接到NameNode节点 -->
+		<name>dfs.hosts</name>
+		<value></value>
+	</property>
+
+	<property>  <!-- 配置黑名单，在退役节点时将需要退役的节点加到该文件中，节点退役之前会将该节点上面的文件复制到其他节点 -->
+		<name>dfs.hosts.exclude</name>
+		<value></value>
+	</property> 
+20. DataNode和NameNode的心跳时间是3s，超时时间是10min + 30s
+21. 服役新节点和退役老节点：服役新节点只需要将新节点上面的NameNode配置成集群的NameNode，然后重启就可以，退役节点时需要将需要
+	退役的节点添加到黑名单里面，这样退役之前会将该节点上面的数据传输到其他节点上面。使用刷新命令刷新配置，在该节点与NameNode
+	失去心跳超过超时时间后，该节点自动退役，可以使用sbin/start-balancer.sh来平衡节点之间的数据。
+22. HDFS存储小文件的优化，使用归档文件.har，归档文件对内是一个一个的小文件，但其存储在一个块中。
+	hadoop archive -archiveName NAME -p <parent path> <src>* <dest>    创建Hadoop归档文件。
+	创建归档文件其实执行MapReduce任务。
+	查看归档文件：hadoop fs -ls har:///wc/myhar/myhar.har    # 查看归档文件时使用har://协议
+	解归档文件：hadoop fs -cp har:///wc/myhar/myhar.har /wc/myhar   # 使用cp命令解归档文件
+23. HDFS启动回收站：
+	core-site.xml
+	<property>
+		<name>fs.trash.interval</name>   <!-- 文件在回收站的时间，单位是分钟 -->
+		<value>0</value>
+	</property>
+	<property>
+		<name>fs.trash.checkpoint.interval</name>     <!-- 回收站检查时间间隔，该值应该小于上面配置的值 -->
+		<value>0</value>
+	</property>
+	<property>
+		<name>hadoop.http.staticuser.user</name>
+		<value>root</value>      <!-- 配置访问文件的用户 --> 
+	</property>
+	通过程序删除的文件不会进入回收站，通过trash.moveToTrash()将文件移到回收站
+24. 恢复回收站里面的数据：
+	hadoop fs -mv <src> <target> 
