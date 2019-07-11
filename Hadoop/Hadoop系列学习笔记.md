@@ -1,4 +1,4 @@
-#<center>**Hadoop系列学习笔记**<center>
+#<center>**Hadoop系列学习笔记**</center>
 
 ## 第一章 MapReduce入门
 
