@@ -1,4 +1,4 @@
-<h1><center>Hadoop系列学习笔记</center></h1>
+<center><h1>Hadoop系列学习笔记</h1></center>
 
 ## 第一章 MapReduce入门
 
@@ -6,7 +6,7 @@
 
 MapReduce是一个分布式运算程序的编程框架，是用户开发“基于Hadoop的数据分析应用”的核心框架。其核心是将用户编写的业务逻辑代码和自带默认组件整合成一个完整的分布式运算程序，并发运行在一个Hadoop集群上。
 
-###2. MapReduce的优缺点
+### 2. MapReduce的优缺点
 
 * 优点
 	
