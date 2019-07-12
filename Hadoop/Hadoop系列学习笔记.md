@@ -41,10 +41,8 @@ Map阶段的主要工作：map，group，sort(通过Job.setGroupingComparatorCla
 Reduce有三个主要阶段：shuffle，sort and reduce
 
 1. Reduce按照分区个数，启动reduce task任务，统计每个分区中单词出现的次数，将结果输出到磁盘文件。
+2. 在将文件输出到磁盘之前，Reduce会对KV进行分组排序，用到的组件是GroupingComparator
 
-###### Shuffle：Map阶段的数据怎样到达Reduce阶段？
-
-	// TODO
 
 ### 4. MapReduce进程
 
@@ -130,6 +128,60 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 
 ## 第三章 MapReduce框架原理
+
+###### Map阶段
+
+* 将文件进行逻辑分片，生成job.split分片文件，并将job相关的配置文件写入job.xml,然后将Job提交给Yarn，包含job.split, job.xml以及程序jar包。Yarn启动Mr AppMaster来调度任务，根据分片数量计算出map task的数量，每一个map task处理一个分片的数据，每个task并行运行。
+* map task启动之后使用InputFormat读取文件内容，将读取的内容传送给map()方法进行逻辑处理，可以自定义InputFormat实现文件内容的读取，默认使用TextInputFormat读取文件中的每一行数据，读取文件内容为KV键值对，K为读取文件内容的偏移量。
+* map()方法处理之后通过context将KV写出，此时并不是直接将KV对写入磁盘，而是将数据写入到环形缓冲区。
+* 在环形缓冲区对map()的输出KV进行分区，排序，如果指定了Combiner组件，还会对数据在本地进行合并，然后将数据溢写到磁盘文件，此时KV在分区内有序。默认使用的分区组件是HashPartition。
+* 将溢写到磁盘的小文件Merge并排序，合成一个大文件供reduce()方法使用。
+
+
+###### Reduce阶段
+
+* Map阶段结束后，Reduce会根据Map阶段的分区个数，计算需要启动的reduce task个数，每个reduce task处理一个分区的数据，所以reduce task会从不同的节点上(每一个分片对应一个节点信息)面获取同一个分区的数据，这个过程依赖http，因此比较消耗性能，从map端获取数据的过程叫做shuffle。
+* shuffle结束后，使用GroupingComparable组件将来自不同节点的同一分区数据进行分组排序。
+* 分组排序后将同一个K的KV传到reduce()方法进行逻辑处理。
+* reduce()方法处理之后会通过OutputFormat将文件以KV对的形式写入的磁盘。
+
+###### MapReduce任务Job提交流程
+
+* 提交作业源码解析
+		
+		job.waitForCompletion(true);
+		submit(){
+			// 建立客户端连接，有本地客户端和Yarn两种实现: LocalJobRunner YARNRunner
+			this.connect();
+			// 根据文件系统和客户端创建一个jobSubmitter
+			final JobSubmitter submitter = this.getJobSubmitter(this.cluster.getFileSystem(), this.cluster.getClient());
+			// 提交作业
+			submitter.submitJobInternal(Job.this, Job.this.cluster);
+		};
+		// 提交作业流程
+		submitter.submitJobInternal(job, cluster){
+			// 创建给集群提交数据的staging路径
+			Path jobStagingArea = JobSubmissionFiles.getStagingDir(cluster, conf);
+			// 获取jobId，并创建job路径
+			JobID jobId = this.submitClient.getNewJobID();
+	        job.setJobID(jobId);
+	        Path submitJobDir = new Path(jobStagingArea, jobId.toString());
+			// 拷贝jar包到集群
+			this.copyAndConfigureFiles(job, submitJobDir);
+			JobResourceUploader rUploader = new JobResourceUploader(this.jtFs);
+        	rUploader.uploadFiles(job, jobSubmitDir);
+			// 计算切片，生成切片规划文件：job.split, job.splitmetainfo, 返回值maps是需要启动的map task的数量
+			// 将生成的文件写入staging路径下对应的jobId目录
+			int maps = this.writeSplits(job, submitJobDir);
+			// 将配置文件写到staging路径下对应的jobId目录，文件名job.xml
+			this.writeConf(conf, submitJobFile);
+			// 使用客户端提交作业，返回提交状态
+			status = this.submitClient.submitJob(jobId, submitJobDir.toString(), job.getCredentials());
+		};
+		
+		
+		
+
 
 
 ## 第四章 Hadoop数据压缩
