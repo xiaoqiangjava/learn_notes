@@ -160,6 +160,8 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 		};
 		// 提交作业流程
 		submitter.submitJobInternal(job, cluster){
+			// 检查输出路径是否存在，存在则抛出异常
+			this.checkSpecs(job);
 			// 创建给集群提交数据的staging路径
 			Path jobStagingArea = JobSubmissionFiles.getStagingDir(cluster, conf);
 			// 获取jobId，并创建job路径
@@ -179,9 +181,181 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 			status = this.submitClient.submitJob(jobId, submitJobDir.toString(), job.getCredentials());
 		};
 		
-		
-		
+###### FileInputFormat切片逻辑
 
+* FileInputFormat是一个抽象类，常见的实现有TextInputFormat, CombineFileInputFormat(是个抽象类，重写了切片逻辑，具体实现类是CombineTextInputFormat和CombineSequenceFileInputFormat), KeyValueTextInputFormat, NLineInputFormat
+* TextInputFormat是MapReduce默认的实现，该类中没有重写getSplits(job) 方法，所以使用FileInputFormat中的切片实现
+* 类继承关系：InputFormat <-- FileInputFormat <-- TextInputFormat(没有重写getSplits方法，只重写了createRecordReader)
+* 当文件的大小大于切片大小(默认是块的大小128M，可以通过参数指定最大最小值)的1.1倍时才会切片
+* FileInputFormat切片逻辑如下：
+
+		// 获取切片规划文件
+		writeSplits(JobContext job, Path jobSubmitDir){
+			maps = this.writeNewSplits(job, jobSubmitDir);
+		}
+		writeNewSplits(job, jobSubmitDir){
+			// 通过反射获取driver设置的InputFormat->FileInputFormat->TextInputFormat
+			InputFormat<?, ?> input = (InputFormat)ReflectionUtils.newInstance(job.getInputFormatClass(), conf);
+			List<InputSplit> splits = input.getSplits(job);
+		}
+		// 计算分片文件
+		getSplits(job){
+			// 获取切片的最小值：mapreduce.input.fileinputformat.split.minsize参数指定切片的最小值，默认为1L
+			long minSize = Math.max(this.getFormatMinSplitSize(), getMinSplitSize(job));
+			// 获取切片的最大值：mapreduce.input.fileinputformat.split.maxsize参数指定切片的最大值，默认Long.MAX_VALUE
+        	long maxSize = getMaxSplitSize(job);
+			// 定义一个存储切片信息的List
+			List<InputSplit> splits = new ArrayList();
+			// 判断文件是否可切片
+			this.isSplitable(job, path)；
+			// 获取块大小
+			long blockSize = file.getBlockSize();
+			// 计算切片大小：默认是块的大小，Windows下面默认是32M，hdfs块大小为128M
+			long splitSize = this.computeSplitSize(blockSize, minSize, maxSize){
+				Math.max(minSize, Math.min(maxSize, blockSize));
+			}
+			// 开始切片
+			long bytesRemaining;
+            int blkIndex;
+			// 当剩余文件大小大于分片大小的1.1倍时才会切片
+            for(bytesRemaining = length; (double)bytesRemaining / (double)splitSize > 1.1D; bytesRemaining -= splitSize) {
+                blkIndex = this.getBlockIndex(blkLocations, length - bytesRemaining);
+                splits.add(this.makeSplit(path, length - bytesRemaining, splitSize, blkLocations[blkIndex].getHosts(), blkLocations[blkIndex].getCachedHosts()));
+            }
+
+            if (bytesRemaining != 0L) {
+                blkIndex = this.getBlockIndex(blkLocations, length - bytesRemaining);
+                splits.add(this.makeSplit(path, length - bytesRemaining, bytesRemaining, blkLocations[blkIndex].getHosts(), blkLocations[blkIndex].getCachedHosts()));
+            }
+			return splits;
+		}
+		
+* 获取切片信息的API
+
+		// 获取到的是InputSplit的抽象类，需要转换为我们需要的split类型：FileSplit
+		FileSplit fileSplit = (FileSplit) context.getInputSplit();
+        fileSplit.getPath().getName();
+
+###### CombineFileInputFormat切片逻辑：重写了getSplits(job)
+
+* 类继承关系：InputFormat <-- FileInputFormat <-- CombineFileInputFormat <-- CombineTextInputFormat
+* CombineFileInputFormat是关于大量小文件的优化切片策略。
+
+	* 默认情况下TextInputFormat对任务的切片机制是按照文件规划切片，不管文件多小，都是一个单独的文件，都会交给一个map task，这样如果有大量的小文件，就会产生大量的map task, 处理效率低下。
+
+	* 优化策略：
+
+		* 在数据处理最前端（数据采集/预处理）将小文件先合并成大文件，再上传到HDFS做后续的分析
+		* 如果已经有大量的小文件在HDFS中，可以使用CombineFileInputFormat来做切片，他的切片逻辑跟TextInputFormat不同：它可以将多个小文件从逻辑上规划到一个切片中，这样多个小文件就可以交给同一个map task来处理。
+
+
+* CombineFileInputFormat的切片规则：优先满足最小切片大小，不超过最大切片大小
+	
+		// 设置InputFormatClass, 设置的时候设置其具体的实现类，不要设置抽象类，因为抽象类不能通过反射来实例化
+		job.setInputFormatClass(CombineTextInputFormat.class);
+        // 设置最小切片大小
+		CombineFileInputFormat.setMinInputSplitSize(job, 2097152); // 2MB 
+		// 设置最大切片大小
+        CombineFileInputFormat.setMaxInputSplitSize(job, 4194304); // 4MB
+		// 切片举例：0.5M + 1M + 0.3M + 5M = 0.5M + 1M + 0.3M + 0.2M + 4.8M = 2M + 4M + 0.8M最后分成3个分片
+
+###### KeyValueTextInputFormat切片逻辑
+
+* 类继承关系：InputFormat <-- FileInputFormat <-- KeyValueTextInputFormat
+* KeyValueTextInputFormat中没有重写getSplits(job)分片逻辑, 因此使用FileInputFormat中的分片逻辑，只重写了createRecordReader。
+* KeyValueTextInputFormat中，每一行都是一条记录，被分隔符分割为key, value. 可以通过在驱动类中设置conf.set(KeyValueLineRecordReader.KEY_VALUE_SEPERATOR, "--");来指定使用哪种分割符。
+
+		INFO--This is a info log
+		ERROR--This is a error log
+		分割之后：
+		(INFO, This is a info log)
+		(ERROR, This is a error log)
+
+###### NLineInputFormat切片逻辑
+
+* 类继承关系：InputFormat <-- FileInputFormat <-- NLineInputFormat
+* NLineInputFormat重写了getSplits(job)方法，每个map task处理的InputSplit按照NLineInputFormat指定的行数N来划分，即输入的文件总行数/N = 切片数，如果不整除，切片数 = 商 + 1。
+* NLineInputFormat的输入K跟TextFileInputFormat一样，都是行的偏移量，为LongWritable类型
+* 代码实现：
+
+		// 设置InputFormat类型为NLineInputFormat
+        job.setInputFormatClass(NLineInputFormat.class);
+		// 设置每个切片的行数        
+		NLineInputFormat.setNumLinesPerSplit(job, 2);
+
+###### 自定义InputFormat, 实现SequenceFileInputFormat功能
+
+* 自定义一个类，继承FileInputFormat
+* 改写RecordReader, 实现一次读取一个完整文件封装为KV，文件路径加文件名为K，文件内容为V
+* 在输出时使用SequenceFileOutputFormat输出合并文件
+
+###### MapTask工作机制
+
+* 并行度决定机制
+	* map task的并行度决定map阶段的任务处理并发度，进而影响整个job的处理速度。
+	* 一个job的Map阶段的map task并行度(map task个数)，由客户端提交job时的切片个数决定
+
+* MapTask工作机制
+
+	* Read阶段
+		
+		客户端提交job之前，获取待处理数据的信息，然后根据相应的参数设置，形成一个任务分配的规划。默认情况下使用TextInputFormat对文件进行分片以及读取文件内容，LineRecordReader是默认的RecoderReader实现，将读取的文件内容封装成KV传给map()
+
+	* Map阶段
+
+		重写Mapper类中的map()方法，实现具体的业务逻辑，将经过处理的KV使用context.write()方法写出。
+
+	* Collect阶段
+	
+		Map阶段输出的KV，不是直接传给Reduce阶段，而是被OutputCollector收集起来，写到环形缓冲区，环形缓冲区会被一分为二，左边写索引，右边写数据，环形缓冲区的默认大小是100MB，当环形缓冲区的数据占到80%的时候，就开始往磁盘溢写数据，溢写之前会对文件进行分区，默认的分区函数是HashPartitioner, 分区之后会对一个分区内的数据进行排序。
+
+	* 第一次Combine阶段(可选，需要通过job.setCombineClass(class)启用)
+
+		当指定了Combine组件时，框架会按照分区对每个分区内的数据进行局部预聚合，经过预聚合之后可以减少溢写到磁盘的数据量，但是也增加了一次reduce操作，需要权衡性能。
+		
+	* 溢写阶段
+
+		环形缓冲区中的文件溢写(spill)到磁盘的过程，可能存在多次溢写，因此会生成多个分区且区内有序的小文件。 当指定了Combine组件时，每个溢写到磁盘的小文件都是进过Combine预聚合的。
+
+	* Merge阶段
+
+		将多次溢写到磁盘的小文件，按照分区Merge归并排序，生成不同分区的大文件，供reduce task获取处理。
+
+	* 第二次Combine阶段(可选)
+		
+		第一次Combine阶段将每次溢出的数据进行了局部预聚合，Merger阶段会将多次溢出到磁盘的文件按照分区进行合并，合并之后生成的文件需要再一次Combine预合并，生成分区内合并的文件。
+
+	* 压缩(可选，通过Configuration配置CompressionCodec实现)
+
+		按照分区，对每个分区的数据进行压缩，减少reduce task获取数据的网络消耗。
+
+###### Shuffle工作机制
+
+* reduce task从map输出拷贝数据到reduce节点，每个reduce task拷贝一个分区的数据，先将数据拷贝到内存中，如果内存不够便会将数据溢写到磁盘，然后将拷贝过来的数据进行归并排序，按照相同的Key分组，可以通过job.setGroupingComparatorClass()自定义分组的过程，分组之后将数据传送到reduce()方法进行处理
+
+###### 自定义Partitioner
+
+* 自定义类继承Partitioner，重写getPartition()方法，该方法返回一个int类型的值，代表partition的序号，从0开始计数。
+* Driver端设置自定义的Partitioner: 
+
+		job.setPartitionerClass(T extends Partitioner);
+* 自定义partitioner之后，要根据自定义的partitioner的逻辑设置相应数量的reduce task,否则不会生效
+
+		job.setNumReduceTasks(taskNum);	
+* 如果reduce task的数量 > getPartition的结果数，则会产生几个空的输出文件part-r-000xx;
+* 如果1 < reduce task数量 < getPartiton的结果数，则有一部分的数据无处安放，会抛出Exception
+* 如果reduce task的数量是1，则不管map task输出多少个分区文件，最终结果都会交给这个reduce task，最终也只会输出一个结果文件，这也正是当设置了自定义分区而不设置reduce task的数量时，只会输出一个文件的原因，因为reduce task的数量默认为1.
+
+###### WritableComparable排序
+
+
+###### Combine合并
+
+
+###### GroupingComparator分组(辅助排序)
+
+
+###### ReduceTask工作机制
 
 
 ## 第四章 Hadoop数据压缩
