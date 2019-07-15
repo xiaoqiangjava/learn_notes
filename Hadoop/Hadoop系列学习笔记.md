@@ -41,7 +41,7 @@ Map阶段的主要工作：map，group，sort(通过Job.setGroupingComparatorCla
 Reduce有三个主要阶段：shuffle，sort and reduce
 
 1. Reduce按照分区个数，启动reduce task任务，统计每个分区中单词出现的次数，将结果输出到磁盘文件。
-2. 在将文件输出到磁盘之前，Reduce会对KV进行分组排序，用到的组件是GroupingComparator
+2. 在将文件输出到磁盘之前，Reduce会对KV进行分组，用到的组件是GroupingComparator，通过实现WritableComparator类的compare()方法，比较相等的两个key分配到同一个组内，分组是在排序的基础之上进行分组。
 
 
 ### 4. MapReduce进程
@@ -49,7 +49,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 一个完成的MapReduce程序在分布式运行时有三类进程：
 
 * AppMaster： 负责整个程序的过程调度和状态协调
-* MapTask： 负责Map阶段这个数据处理流程
+* MapTask： 负责Map阶段整个数据处理流程
 * ReduceTask： 负责Reduce阶段整个数据处理流程
 
 ### 5. MapReduce编程规范
@@ -58,7 +58,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 
 ###### Mapper阶段：
-	
+
 * 用户自定义的Mapper要继承Mapper父类
 * Mapper的输入数据是KV格式，KV的类型可以自定义
 * Mapper中的业务逻辑写在map()方法中
@@ -307,15 +307,26 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 	* Collect阶段
 	
-		Map阶段输出的KV，不是直接传给Reduce阶段，而是被OutputCollector收集起来，写到环形缓冲区，环形缓冲区会被一分为二，左边写索引，右边写数据，环形缓冲区的默认大小是100MB，当环形缓冲区的数据占到80%的时候，就开始往磁盘溢写数据，溢写之前会对文件进行分区，默认的分区函数是HashPartitioner, 分区之后会对一个分区内的数据进行排序。
+		Map阶段输出的KV，不是直接传给Reduce阶段，而是被OutputCollector(存在reduce阶段时默认实现是：MapOutputBuffer)收集起来，写到环形缓冲区，环形缓冲区会被一分为二，左边写索引，右边写数据，环形缓冲区的默认大小是100MB，当环形缓冲区的数据占到80%的时候，就开始往磁盘溢写数据，溢写之前会对文件进行分区，默认的分区函数是HashPartitioner, 分区之后会对一个分区内的数据进行排序。
 
 	* 第一次Combine阶段(可选，需要通过job.setCombineClass(class)启用)
 
-		当指定了Combine组件时，框架会按照分区对每个分区内的数据进行局部预聚合，经过预聚合之后可以减少溢写到磁盘的数据量，但是也增加了一次reduce操作，需要权衡性能。
+		当指定了Combine组件时，框架会按照分区对每个分区内的数据进行局部预聚合，经过预聚合之后可以减少溢写到磁盘的数据量，但是也增加了一次reduce操作，需要权衡性能。Combiner调用在sortAndSpill()方法中，该方法可以由SpillThread线程触发(run(){sortAndSpill()})，也可以在最后collector写完所有的分片数据后，flush(){sortAndSpill()}操作里面调用.
+			
+			sortAndSpill(){
+				// 对每个分区的数据，调用combine方法预聚合
+				for(int i = 0; i < this.partitions; ++i) {
+					if (this.combinerRunner == null) {
+					} else {
+						// combine方法调用了reduce的run方法进而调用了reduce()方法
+						this.combinerRunner.combine(kvIter, this.combineCollector);
+					}
+				}
+			}
 		
 	* 溢写阶段
 
-		环形缓冲区中的文件溢写(spill)到磁盘的过程，可能存在多次溢写，因此会生成多个分区且区内有序的小文件。 当指定了Combine组件时，每个溢写到磁盘的小文件都是进过Combine预聚合的。
+		环形缓冲区中的文件溢写(spill)到磁盘的过程，可能存在多次溢写，因此会生成多个分区且区内有序的小文件，由于默认情况下每个map task处理的文件分片大小是128M，个人认为最多会生成两个文件。 当指定了Combine组件时，每个溢写到磁盘的小文件都是进过Combine预聚合的。溢写是每个map task生成两类文件，file.out和file.out.index, 每个文件中都包括全部的分区数据。
 
 	* Merge阶段
 
@@ -348,14 +359,56 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 ###### WritableComparable排序
 
-
-###### Combine合并
-
+* 在MapReduce任务中，任何类型都可以作为K的类型，当自定义的Bean作为K的类型时，需要实现WritableComparable接口，重写序列化方法以及排序方法。因为MapReduce任务的排序是默认行为，所有的key都会经过排序，当Value需要排序时，需要将Value包装成Key来实现排序。
+* 在MapReduce任务中，如果自己没有指定Partitioner, 则会使用默认的分区函数：HashPartitoner来做分区，会使用到hashCode()方法，所以自定义的Bean作为Key时，还必须实现hashCode()方法，以达到不同的实例，返回相同的结果，默认的实现不能满足这一要求。
 
 ###### GroupingComparator分组(辅助排序)
 
+* GroupingComparator的作用是分组，在已经排序好的key的基础之上进行的分组，排序之后相同的key是连续的，默认分组规则跟key排序的规则相同，即从上到下遍历排序之后的结果，连续相同的key被划分为同一个组内。
+* 如果自定义的分组规则将排序的结果分段，即打乱了WritableComparable定义时的属性顺序，则分组之后不会将所有相同的key分到一个组内。分组是在排序之后的基础之上进行的分组，当对key的排序和分组定义的规则不同时，从上往下遍历，遇到分组定义的相同的key即划分到一组，不连续时即使分组定义的key相同，也不会划分到同一个组内。
+* 定义分组函数时，一般是在对key排序的基础之上进行有序的规则加减，而不是打乱key排序阶段定义的属性顺序。例如：key排序阶段定义的规则是先判断age，然后再判断faceValue，那么在分组阶段可以只判断age，让age相同的KV都进入同一reduce()方法，然后获取到同一个年龄的最大faceValue值。
+* 分组阶段，如果自定义的分组函数使得传入reduce()方法的key值减少，会将第一key传给reduce()方法，即对于相同K的KV，只取第一个K作为reduce()方法的传入参数，其他的V会组装成一个Iterator，因此在取最大/最小值时需要注意传入到reduce()方法的K。
+* 代码实现：需要继承WritableComparator类，重写compare(WritableComparable a, WritableComparable b)方法,并且提供构造参数
+
+		public class MyGroupingComparator extends WritableComparator
+		{
+			// 不提供构造参数时报空指针异常
+		    public MyGroupingComparator()
+		    {
+		        super(FlowBean.class, true);
+		    }
+		    @Override
+		    public int compare(WritableComparable a, WritableComparable b)
+		    {
+		        FlowBean x = (FlowBean) a;
+		        FlowBean y = (FlowBean) b;
+		        return Long.compare(x.getUpload(), y.getUpload());
+		    }
+		}
+* 可以使用NullWritable类来指定不需要输出的null字段类型，通过NullWritable.get()方法获取该类型的实例
+
+
+###### Combine合并
+
+* 可以在map()阶段对结果预聚合，减少磁盘和网络IO，通过job.setCombinerClass()指定Combiner组件，该组件没有默认的实现，编写Combiner组件时，继承Reducer类，重写reduce()方法即可。
+* 不是所有的操作都适合Combiner组件的调用，要看业务逻辑是否支持组件的预聚合操作。
+* Combiner组件和Reducer的区别是运行的位置不同：Combiner在每个map task节点上面运行，Reducer是接受全局所有Mapper的输出结果。
+* Combiner的输出KV应该与Reducer的输入KV对应起来。
 
 ###### ReduceTask工作机制
+
+* reduce task的并发度同样影响整个Job执行的并发度以及执行效率，但与map task的并发数量由切片数决定不同，reduce task的数量可以手动设置：job.setNumReduceTasks(4)
+* reduce task的值设置为0表示没有reduce阶段，输出文件的个数和map task的数量一致
+* reduce task的默认值为1，所以不设置reduce task的数量时，输出的文件个数是一个。
+* 如果数据分布不均匀，就有可能在reduce task阶段产生数据倾斜。
+* reduce task的数量并不是任意设置，还要考虑业务逻辑需求，有些情况下需要计算全局汇总结果，所以reduce task的数量必须设置为1个。
+* 如果分区数大于1，但是reduce task的值为1，是不会执行分区过程的，因为MapReduce框架在执行分区前会先判断reduce task的个数是否大于1个。
+* ReduceTask工作机制：shuffle(copy, merge), sort, reduce
+	* Copy阶段：reduce task从map task远程拷贝一片数据，并针对某一片数据，如果其大小超过一定的阈值，则写到磁盘上，否则直接放在内存中。
+	* Merge阶段：在远程拷贝数据的同时，reduce task启动了两个进程对内存和磁盘上的文件进行合并，分别是OnDiskMerger和InMemoryMerger。
+	* Sort阶段：按照MapReduce语义，用户编写reduce()方法的输入参数是按照key进行聚合的一组数据，为了将key相同的数据聚合在一起，MapReduce采用了基于排序的策略。由于各个map task已经实现了对自己的处理结果进行了局部排序，因此，reduce task只需要对所有的数据进行一次归并排序即可
+	* 分组阶段：排序之后的数据会经过分组，将相同的key聚合，value封装成一个Iterator，传给reduce阶段处理。
+	* Reduce阶段：reduce函数经过一定的逻辑处理，将结果写到HDFS中。
 
 
 ## 第四章 Hadoop数据压缩
