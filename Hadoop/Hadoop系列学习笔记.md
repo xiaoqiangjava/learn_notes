@@ -326,7 +326,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 		
 	* 溢写阶段
 
-		环形缓冲区中的文件溢写(spill)到磁盘的过程，可能存在多次溢写，因此会生成多个分区且区内有序的小文件，由于默认情况下每个map task处理的文件分片大小是128M，个人认为最多会生成两个文件。 当指定了Combine组件时，每个溢写到磁盘的小文件都是进过Combine预聚合的。溢写是每个map task生成两类文件，file.out和file.out.index, 每个文件中都包括全部的分区数据。
+		环形缓冲区中的文件溢写(spill)到磁盘的过程，可能存在多次溢写，因此会生成多个分区且区内有序的小文件，由于默认情况下每个map task处理的文件分片大小是128M，个人认为会生成两个文件，具体取决于溢写的速度。 当指定了Combine组件时，每个溢写到磁盘的小文件都是进过Combine预聚合的。溢写是每个map task生成两类文件，file.out和file.out.index, 每个文件中都包括全部的分区数据。
 
 	* Merge阶段
 
@@ -442,6 +442,78 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 ## 第四章 Hadoop数据压缩
 
+###### 概述
+
+* 压缩是MapReduce的一种优化策略：通过压缩编码对Mapper和Reducer的输出进行压缩，可以减小磁盘I/O压力，提高MR程序运行速度（但相应增加了CPU运算负荷，需要折中考虑，结合具体业务场景使用）。
+* 基本原则：
+	* 运算密集型的job，其CPU压力较大，尽量少用压缩，防止CPU超负荷
+	* IO密集型的job，多实用压缩，减小I/O压力，提高MR程序运行速度。
+
+###### MR支持的压缩编码
+
+* DEFLATE：Hadoop自带，可以直接使用，文件扩展名.deflate, **不支持切片**，适用于较小文件的压缩。处理方式和处理文本一样不需要修改程序。
+* Gzip: Hadoop自带，可以直接使用，文件扩展名.gz，**不支持切片**，同样适用于较小文件的压缩。处理方式和处理文本一样不需要修改程序。
+* bzip2: Hadoop自带，可以直接使用，文件扩展名.bz2, **支持文件切片**，适合较大文件，但其加压缩速度较慢。处理方式和处理文本一样不需要修改程序。
+* LZO：需要安装之后才能使用，文件扩展名.lzo, **支持切片**，使用时需要建立索引，还需要指定输入格式。
+* Snappy：需要安装之后才能使用，文件扩展名.snappy, **不支持切片**， 处理方式跟处理文本一样。
+* 企业中最常使用的是LZO(laziluo)和Snappy
+* 为了支持多种压缩和解压缩算法，Hadoop引入了编码/解码器
+	* DEFLATE --> org.apache.hadoop.io.compress.DefaultCodec
+	* Gzip --> org.apache.hadoop.io.compress.GzipCodec
+	* bzip2 --> org.apache.hadoop.io.compress.BZip2Codec
+	* LZO --> com.hadoop.compression.lzo.LzopCodec
+	* Snappy --> org.apache.hadoop.io.compress.SnappyCodec
+
+###### 压缩方式选择
+* Gzip压缩：
+	* 优点：压缩率比较高，而且压缩/解压缩速度也比较快；Hadoop本身支持，在应用中处理gzip文件和处理文本文件一样；大部分Linux系统自带，使用方便
+	* 缺点： 不支持split
+	* 应用场景：当每个文件压缩之后在130M之内(一个块大小左右)，都可以考虑gzip压缩格式。
+
+* Bzip2: 
+	* 优点：支持split，具有很高的压缩率，比gzip压缩率高；hadoop本身支持，但不支持Native，在Linux系统下自带bzip2命令，使用方便。
+	* 缺点：压缩/解压缩速度慢，不支持native方法
+	* 使用场景：适合对速度要求不高，但需要较高的压缩率的时候，可以作为MapReduce的输出；或者输出之后数据比较大，处理之后的数据需要压缩存档减少磁盘空间，并且以后用的比较少的情况；或者对很大的文本文件想压缩减少磁盘空间，同时又需要支持split，而且兼容以前的应用程序的情况。
+
+* LZO压缩：
+	* 优点：压缩/解压缩速度比较快，合理的压缩率；支持split，是Hadoop中最流行的压缩格式，可以在Linux中安装lzop命令，使用方便。LZO是供Hadoop压缩数据用的通用压缩编码器。
+	* 缺点：压缩率比gzip文件低；Hadoop本身不支持，需要安装；在应用对lzo格式的文件需要做一些特殊处理(为了支持split，需要建立索引，还需要指定InputFormat为lzo)
+	* 使用场景：一个很大的文本文件压缩之后在200MB以上的可以考虑，而且单个文件越大，lzo优点越明显。
+
+* Snappy：
+	* 优点：高速压缩速度以及合理的压缩率
+	* 缺点：不支持split；压缩率比gzip要低；Hadoop本身不支持，需要安装
+	* 应用场景：当MapReduce的map输出数据比较大的时候，作为map到reduce的中间数据的压缩格式；或者作为一个MapReduce作业的输出和另一个MapReduce作业的输入。
+
+###### 压缩位置的选择
+* 输入端采用压缩：在有大量数据并计划重复处理的情况下，应该考虑对输入进行压缩。然而你无需指定需要使用的编解码方式，Hadoop自动检查文件扩展名，如果扩展名能够匹配，就会用恰当的编解码方式对文件进行压缩解压。否则Hadoop不会使用任何编解码器
+* Mapper输出数据压缩：当map任务输出的中间数量很大时，应该考虑在此阶段使用压缩技术。这能够显著改善内部数据Shuffle过程，而Shuffle是Hadoop中资源消耗最多的环节，如果发现数据量大，造成网络传输缓慢，应该考虑使用压缩技术。可用于Mapper输出的快速编码器有LZO和Snappy
+* Reducer输出采用压缩：在此阶段采用压缩技术，可以减少要存储的数据量，因此降级所需的磁盘空间。当MapReduce的任务形成作业链时，因为第二个作业的输入已压缩，所以启用压缩同样有效。
+
+###### 压缩参数配置
+* 配置输入压缩：
+	* io.compression.codes(core-site.xml), 配置输入压缩。
+
+
+* 配置Mapper输出：
+	* mapreduce.map.output.compress(mapred-site.xml),配置是否启用Mapper输出压缩。
+	* mapreduce.map.output.compress.codec(mapred-site.xml),配置Mapper输出压缩编码器，建议使用LZO或者Snappy
+	
+
+* 配置Reducer输出：
+	* mapreduce.output.fileoutputformat.compress(mapred-site.xml), 配置是否启用Reducer输出压缩。
+	* mapreduce.output.fileoutputformat.compress.codec(mapred-site.xml), 配置Reducer输出压缩编码器, 使用标准编解码器，比如gzip和bzip2
+	* mapreduce.output.fileoutputformat.compress.type(mapred-site.xml), 配置Reducer输出压缩类型，默认是RECORD，当使用SequenceFile输出时，使用的压缩类型修改为：NONE或者BLOCK
+
+###### 压缩流的获取
+
+		CompressionCodec codec = ReflectionUtils.newInstance(codeClass, new Configuration());
+		// 获取文件扩展名
+		codec.getDefaultExtension();
+		// 获取压缩输出流
+		codec.createOutputStream(outputStream);
+		// 获取压缩输入流
+		codec.createInputStream(inputStream);
 
 ## 第五章 Yarn
 
