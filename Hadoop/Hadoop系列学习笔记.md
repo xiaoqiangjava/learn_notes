@@ -410,6 +410,35 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 	* 分组阶段：排序之后的数据会经过分组，将相同的key聚合，value封装成一个Iterator，传给reduce阶段处理。
 	* Reduce阶段：reduce函数经过一定的逻辑处理，将结果写到HDFS中。
 
+###### 自定义OutputFormat
+
+* 继承FileInputFormat类，实现getRecordWriter方法，返回一个RecordWriter。
+* 自定义RecordWriter，实现write()方法
+
+###### 两张表的join
+
+* 在reduce端join
+	* 在map端先读取两个文件，为了区分两个文件的来源，在封装bean时给每个文件打个tag，然后将连接字段作为map的输出key输出，使数据在shuffle阶段按照key分组
+	* 在reduce端根据tag将同一组数据分成两张表，做笛卡尔积
+	* 这种方法存在两个问题：
+
+		* map阶段没有对数据进行瘦身，shuffle的网络传输性能很低
+		* reduce端对两个集合做乘积计算，很耗内存
+
+* 在map端join
+
+	* map端join适合其中一张表的数据量比较小，可以直接放在内存中的场景
+	* 使用DistributedCache.addCacheFile()将小表添加到缓存，job在提交之前会将指定的文件拷贝到各个Container节点
+	* DistributedCache.getLocalCacheFiles()获取文件，使用标准的文件流将文件加载到本地内存中
+	* 这种方法的局限性：
+
+		* 要将小表数据分发到各个计算节点，所以适合有一张表数据量比较小的场景
+
+###### 计数器
+* 可以使用技术其统计信息，提供一定的监控指标
+
+		context.getCounter("groupName", "counterName").increment(1)
+* 使用场景：可以用于数据清洗时记录清洗掉的记录条数。
 
 ## 第四章 Hadoop数据压缩
 
