@@ -504,8 +504,23 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 	* mapreduce.output.fileoutputformat.compress(mapred-site.xml), 配置是否启用Reducer输出压缩。
 	* mapreduce.output.fileoutputformat.compress.codec(mapred-site.xml), 配置Reducer输出压缩编码器, 使用标准编解码器，比如gzip和bzip2
 	* mapreduce.output.fileoutputformat.compress.type(mapred-site.xml), 配置Reducer输出压缩类型，默认是RECORD，当使用SequenceFile输出时，使用的压缩类型修改为：NONE或者BLOCK
+* 程序中设置：
+
+		// 设置最终输出启用压缩第一种
+		FileOutputFormat.setCompressOutput(job, true);
+        FileOutputFormat.setOutputCompressorClass(job, GzipCodec.class);
+		// 通过配置设置启用压缩
+		conf.setBoolean("mapreduce.output.fileoutputformat.compress", true);
+        conf.setClass("mapreduce.output.fileoutputformat.compress.codec", GzipCodec.class, CompressionCodec.class);
+        // 设置按块压缩，默认是按行压缩
+        conf.set("mapreduce.output.fileoutputformat.compress.type", "BLOCK");
+		// 设置map中间结果压缩
+		conf.setBoolean("mapreduce.map.output.compress", true);
+        conf.setClass("mapreduce.map.output.compress.codec", BZip2Codec.class, CompressionCodec.class);
+
 
 ###### 压缩流的获取
+* 程序中使用反射获取压缩流的输入输出流
 
 		CompressionCodec codec = ReflectionUtils.newInstance(codeClass, new Configuration());
 		// 获取文件扩展名
@@ -516,8 +531,55 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 		codec.createInputStream(inputStream);
 
 ## 第五章 Yarn
+###### Yarn概述
 
+* Yarn是一个资源调度平台，负责为运算程序提供服务器运算资源，相当于一个分布式的操作平台，而MapReduce，spark等应用程序相当于运行在操作系统上的应用程序。
 
+###### Yarn基本架构
+
+* Yarn主要由ResourceManager，Nodemanager，ApplicationMaster和Container等组件
+* ResourceManager的主要作用：
+	* 处理客户端请求
+	* 监控Nodemanager
+	* 启动或者监控ApplicationMaster
+	* 资源的分配和调度
+
+* NodeManager的主要作用
+	* 管理单个节点上的资源
+	* 处理来自ResourceManager的命令
+	* 处理来自ApplicationMaster的命令
+
+* ApplicationMaster的作用：
+	* 负责数据的切分，即告诉map task获取那个分片的数据
+	* 为应用程序申请资源并分配给内部的任务
+	* 任务的监控和容错
+
+* Container的作用
+	* Container是一种虚拟化技术，是Yarn中资源的抽象，它封装了某个节点上多维度资源，内存，CPU，磁盘，网络等。
+
+###### Yarn工作机制
+
+* 作业提交：客户端使用YarnRunner提交作业，YarnRunner向ResourceManager申请一个application，RM返回资源提交的路径以及application_id给客户端，客户端收到RM的反馈，将生成的job.split, job.xml, *.jar提交得到指定的路径。
+* 作业初始化：资源提交之后，YarnRunner向RM申请启动ApplicationMaster，RM收到APPMaster的请求，将请求初始化为一个job，放到**任务调度队列**(FIFO)等待调度。空闲的NodeManager领取到task，在该节点上创建一个Container，创建成功后启动AppMaster进程，并向RM注册。并且下载客户端提交的资源的本地，完成之后APPMaster申请运行Container。
+* 任务分配：APPMaster根据提交的分片信息，计算出map task的数量，申请运行同等数量的Container容器，发送启动脚本到其他的容器启动map task。
+* 任务运行：map task运行结束后APPMaster会根据设定的reduce task数量启动reduce task
+* 进度和状态更新：Yarn中的任务将其进度和状态返回给ApplicationMaster, 最后将进度展示给用户。
+* 每个task运行对应的Yarn中的进程名是YarnChild。
+* 程序运行结束之后APPMaster想RM注销自己。 
+
+###### 资源调度器
+* 目前，Hadoop的作业调度器主要有三种：FIFO，Capacity Schedule和Fair Schedule，Hadoop2.7.2默认的是Capacity Schedule，具体配置在yarn-default.xml中：yarn.resourcemanager.schedule.class
+* FIFO: 按照到达时间顺序，先到先服务
+* Capacity Schedule(容量调度器)：
+	* 支持多个队列，每个队列可配置一定的资源量，每个队列采用FIFO调度策略。比如：A queue 20%资源，B queue 50%资源，C queue 30%资源。
+	* 为了防止同一个用户的作业独占队列中的资源，该调度器会对同一个用户提交的作业所占资源进行限定。
+	* 作业调度时，会计算队列中正在运行的任务数和所分配资源之间的比值，选择一个比值最小的队列来执行调度作业。
+	* 多个job同时运行
+* Fair Schedule(公平调度器)：
+	* 支持多个队列，每个对列中的资源可以配置，同一个队列中的作业公平共享队列中的所有资源。
+	* 按照缺额排序，缺额大着优先获取资源
+	* 比如三个队列，每个队列中的job按照优先级分配资源，优先级越高分配的资源越多，但是每个job都会分配到资源，以确保公平。在资源有限的情况下，每个job理想情况下获得的计算资源与实际获得的计算资源存在一种差距，这个差距叫做缺额。在同一个队列中，job的缺额越大，优先级越高。
+	* 多个job同时运行。
 ## 第六章 Hadoop企业优化
 
 
