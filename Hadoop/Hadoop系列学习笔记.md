@@ -565,7 +565,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 * 任务运行：map task运行结束后APPMaster会根据设定的reduce task数量启动reduce task
 * 进度和状态更新：Yarn中的任务将其进度和状态返回给ApplicationMaster, 最后将进度展示给用户。
 * 每个task运行对应的Yarn中的进程名是YarnChild。
-* 程序运行结束之后APPMaster想RM注销自己。 
+* 程序运行结束之后APPMaster向RM注销自己。 
 
 ###### 资源调度器
 * 目前，Hadoop的作业调度器主要有三种：FIFO，Capacity Schedule和Fair Schedule，Hadoop2.7.2默认的是Capacity Schedule，具体配置在yarn-default.xml中：yarn.resourcemanager.schedule.class
@@ -671,7 +671,4 @@ MapReduce优化方法主要从六个方面考虑：数据输入、Map阶段、Re
 			
 			JVM重用理解：一个map运行一个jvm，重用的话，在一个map在jvm上运行完毕后，jvm继续运行其他map。
 			具体设置：mapreduce.job.jvm.numtasks值在10-20之间。
-## 第七章 MapReduce扩展案例
 
-
-## 第八章 常见错误及解决方案
