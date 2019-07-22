@@ -1,10 +1,10 @@
 						Zookeeper学习
 1. Zookeeper是一个分布式的, 开放源代码的分布式应用程序协调服务, 他是集群的管理者, 监视着集群中各个
-	节点的状态, Zookeeper提供了文件系统和通知机制.
+	节点的状态, Zookeeper提供了文件系统和通知机制. 从设计模式的角度来说，Zookeeper是一个观察者模式。
 
 2. 文件系统--每个子目录都被称作znode, 和文件系统一样我们可以自由的增加或者删除znode, 唯一的不同是
 	znode是可以存储数据的, 而文件系统中的目录是不能存储数据的.
-	> 1. Persistent Nodes 永久节点
+	> 1. Persistent Nodes 永久节点，默认创建的就是持久节点
 		永久有效的节点, 除非client显示的删除, 否则一直存在, 即client跟Zookeeper断开连接后该节点依旧存在.
 	> 2. Ephemeral Nodes 临时节点		
 		临时节点, 仅在创建该节点client保持连接期间有效, 一旦连接丢失, Zookeeper会自动删除该节点,
@@ -54,3 +54,49 @@
 			在约定目录下面创建临时目录节点, 临时节点数目是否是我们要求的数目
 		> FIFO队列
 			创建临时顺序编号目录, 入列有编号, 出列按编号
+			
+5. Zookeeper分布式集群搭建
+	> 1. 在conf/zoo.cfg配置文件中配置集群信息：
+		server.1=hadoop100:2888:3888		# 其中1是每个服务节点的唯一表示，指Zookeeper的data配置目录中新建文件myid中的值
+		server.2=hadoop101:2888:3888		# 2888是服务器与集群中的Leader服务器交换信息的端口
+		server.3=hadoop102:2888:3888		# 3888是万一集群中的Leader服务器挂了，需要一个端口来重新进行选举，
+											# 选出一个新的Leader，而这个端口就是用来执行选举时服务器相互通信的端口
+	> 2. 将配置文件分发到其他的机器上面，Zookeeper不需要指定master，master是集群启动的时候通过选举机制选举出来的。
+	
+6. Zookeeper的选举机制
+	每次投票都会把票数投个myid比自己大的服务器，当得到的票数达到配置文件中配置的服务器数量一般以上时，leader产生.当leader
+	产生之后后面的服务器即使myid比leader的大，但是leader已经产生了，所以自己只能是follower
+
+7.  zkServer.sh status查看状态
+	zkServer.sh start 启动Zookeeper集群
+	zkCli.sh	启动客户端
+
+8. Zookeeper客户端增删改查操作：
+	> 1. 创建节点：默认创建的是持久节点，-e指定临时节点，临时节点不能有子节点
+		create [-s] [-e] path data acl    # -s表示有序，-e表示临时节点，默认创建的是持久节点，创建是必须指定data
+		create /0722 "I love wenwen"		# 创建持久化节点
+		create -s /0722/xiaoqiang "xiaoqiang"    	# 创建有序的持久化节点
+		create -e /0722/linshi	"linshi"			# 创建临时几点，客户端断开连接后自动删除
+		create -s -e /0722/linshiyouxu "linshi youxu"   # 创建临时有序节点
+	> 2. 读取节点数据
+		get path [watch]	# 读取指定path的节点数据，watch表示监听该路径的内容
+	> 3. 更新节点数据
+		set path data [version]   # 更新指定节点的数据
+	> 4. 删除指定节点
+		delete path	[version]		# 删除指定的节点，delete不能递归删除，只能删除空的节点
+		rmr path					# 递归删除指定的节点
+	> 5. ls path [watch]			# 列出path下面的子节点，watch表示监听指定的path下子节点变化，这里的监听只会监听一次
+	
+9. 监听器的原理：观察者模式
+	>1. 在main()线程中创建zkClient, 这时会创建两个线程，一个负责网络连接通信(connect), 一个负责监听(listener)
+	>2. 通过connect线程将注册的监听事件发送给Zookeeper
+	>3. 将注册的监听事件和客户端信息保存到监听列表中
+	>4. Zookeeper监听到有数据或者路径发生变化时，就会将这个消息通知给监听线程
+
+10. Zookeeper写数据流程：
+	>1. 客户端发送写数据的请求到指定的服务器端
+	>2. 指定的服务器接收到请求之后找到集群中的Leader，将请求转发给Leader来处理
+	>3. Leader处理到请求之后会广播给所有的follower
+	>4. follow收到leader的写数据命令，开始将数据写到具体的节点上面，数据写完之后通知Leader，写操作已完成
+	>5. Leader收到大多数server完成操作的响应之后会通知客户端请求的服务器，客户端请求的服务器写操作已完成，
+	该服务器再将信息返回到客户端
