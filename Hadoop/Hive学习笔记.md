@@ -144,3 +144,62 @@ Hive操作跟MySQL操作类似。
 		STRUCT	和c语言中的struct类似，都可以通过“点”符号访问元素内容。例如，如果某个列的数据类型是STRUCT{first STRING, last STRING},那么第1个元素可以通过字段.first来引用。	struct()
 		MAP	MAP是一组键-值对元组集合，使用数组表示法可以访问数据。例如，如果某个列的数据类型是MAP，其中键->值对是’first’->’John’和’last’->’Doe’，那么可以通过字段名[‘last’]获取最后一个元素	map()
 		ARRAY	数组是一组具有相同类型和名称的变量的集合。这些变量称为数组的元素，每个数组元素都有一个编号，编号从零开始。例如，数组值为[‘John’, ‘Doe’]，那么第2个元素可以通过数组名[1]进行引用。	Array()
+
+* 复杂类型创建表：
+
+		create table test(
+			id int,
+			skill array<string>,
+			description	map<string, int>,
+			address	struct<first:string, next:string>)
+			row format delimited fields terminated by ","     # 注意， 下面开始的每一行中间没有分割符逗号
+			collection items terminated by "_"
+			map keys terminated by ":";
+
+* 类型转换
+	* 任何一个整数类型都可以隐式的转换为一个范围更广的的类型，如TINYINT可以转成INT，INT可以转成BIGINT。
+	* 所有的整数类型，FLOAT和STRING类型都可以隐式的转换成DOUBLE。
+	* TINYINT，INT，SMALLINT都可以转成成FLOAT。
+	* BOOLEAN类型不可以转成成其他的任何类型。
+	* 可以使用CAST操作显示进行类型转换：CAST('1' AS INT),如果强制类型转换失败，返回NULL，比如CAST('x' AS INT) 返回NULL；
+
+## 第四章 Hive的DDL语句
+	
+###### 数据库DDL语句
+* 创建数据库：
+	
+		create database [if not exists] hive_db;  # 默认在HDFS中的存储位置：/user/hive/warehouse/hive_db.db文件夹下面
+		create database hive_db location '/db/hive_db.db'; # 创建数据库时可以指定存储的地址
+
+* 显示数据库信息：
+	
+		desc database hive_db;			# 查询数据库信息
+		desc database extended hive_db;	# 查询数据库详细信息(扩展信息)
+
+* 数据库的修改：
+		
+		alter database hive_db set dbproperties("createTime"="2019-07-30");	# 可以通过desc database extended查看到
+
+* 删除数据库
+
+		drop database hive_db;	# 删除空的数据库
+		drop database hive_db cascade;	# 可以删除不为空的数据库
+		
+###### 表DDL语句
+
+* 创建表：
+
+		CREATE [EXTERNAL] TABLE [IF NOT EXISTS] table_name # EXTERNAL让用户创建一个外部表，通过LOCATION指定实际的表数据路径
+			[(col_name data_type [COMMENT col_comment],...)]    # COMMENT为列或者表添加注释
+			[COMMENT table_comment]
+			[PARTITIONED BY (col_name data_type [COMMENT col_comment], ...)] # 创建分区表
+			[CLUDTERED BY (col_name, col_name,...)]	# 创建分桶表
+			[SORTED BY (col_name [AES|DESC], ...)] INTO num_buckets BUCKETS]
+			[ROW FORMAT row_format]
+			[STORED AS file_format]
+			[LOCATION hdfs_path]
+			[LIKE table_name]		# 复制现有的表结构，不复制数据
+
+	* EXTERNAL 关键字可以让用户创建一个外部表，在建表的同时，指定一个实际数据的路径(LOCATION),Hive创建内部表时，会将数据移动到数据仓库指向的路径；若创建外部表，只记录数据所在的位置，不会对数据的位置做任何改变。在删除表的时候，内部表的数据和元数据会被一起删除，而外部表只删除元数据，不删除数据。
+	* ROW FORMAT DELIMITED [FIELDS TERMINATED BY char] [COLLECTION ITEMS TERMINATED BY char] [MAP KEYS TERMINATED BY char] [LINES TERMINATED BY char]
+	* STORED AS 指定文件存储的类型：SEQUENCEFILE(二进制序列文件)，TEXTFILE(文本)，RCFILE(列式存储格式文件)
