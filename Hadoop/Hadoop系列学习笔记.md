@@ -13,7 +13,7 @@ MapReduce是一个分布式运算程序的编程框架，是用户开发“基�
 	易于编程<br>
 	良好的扩展性<br>
 	高容错性<br>
-	适合处理PB级别海量数据的离线梳理
+	适合处理PB级别海量数据的离线处理
 
 * 缺点
 	
@@ -31,7 +31,7 @@ MapReduce是一个分布式运算程序的编程框架，是用户开发“基�
 	
 Map阶段的主要工作：map，group，sort(通过Job.setGroupingComparatorClass(Class)可以控制分组排序的过程)，partitioner(通过实现Partitioner控制分区), Combine(本地局部聚合，通过Job.setCombinerClass(Class)指定)
 
-* 读取文件，将文件切片，切片之后的文件默认大小跟HDFS中block的大小保持一直，是128M。将切片之后的文件分发到不同的节点并发运行。
+* 读取文件，将文件切片，切片之后的文件默认大小跟HDFS中block的大小保持一致，是128M。将切片之后的文件分发到不同的节点并发运行。
 * 读取切片文件数据，按行读取，对每一行数据进行处理，形成KV键值对（word, 1）,将所有的KV键值对按照特定的规则分区，写到磁盘，写入磁盘的文件数量跟分区的数量一致。
 
 
@@ -69,7 +69,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 * 用户自定义的Reduce要继承Reducer父类
 * Reducer的输入类型对应Mapper阶段的输出数据类型，也是KV
-* Reducer的业务逻辑卸载reduce()方法中
+* Reducer的业务逻辑写在reduce()方法中
 * reduce()方法(reduce task进程)对每一个相同K的<K, V>调用一次
 
 ###### Driver阶段：
@@ -412,7 +412,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 ###### 自定义OutputFormat
 
-* 继承FileInputFormat类，实现getRecordWriter方法，返回一个RecordWriter。
+* 继承FileOutputFormat类，实现getRecordWriter方法，返回一个RecordWriter。
 * 自定义RecordWriter，实现write()方法
 
 ###### 两张表的join
@@ -601,6 +601,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 	* 特殊任务，必须任务向数据库写数据，会在数据库中插入重复数据。
 
 * 推测执行算法原理：
+		
 		// 推测正在运行任务的完成时间
 		推测任务执行完成时间（60） = 推测运行时间（60） + 任务启动时刻（0）
 		推测运行时间(60) = (当前时刻 （6）- 任务启动时刻（0）） / 任务运行比例 (10%)
@@ -629,6 +630,7 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 ###### MapReduce的优化方法
 MapReduce优化方法主要从六个方面考虑：数据输入、Map阶段、Reduce阶段、IO传输、数据倾斜问题和常用的调优参数。
+
 * 数据输入
 	* 合并小文件：在执行mr任务前将小文件进行合并，大量的小文件会产生大量的map任务，增大map任务装载次数，而任务的装载比较耗时，从而导致mr运行较慢。
 	* 采用CombineTextInputFormat来作为输入，解决输入端大量小文件场景。
