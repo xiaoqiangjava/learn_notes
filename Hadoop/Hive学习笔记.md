@@ -153,7 +153,7 @@ Hive操作跟MySQL操作类似。
 			description	map<string, int>,
 			address	struct<first:string, next:string>)
 			row format delimited fields terminated by ","     # 注意， 下面开始的每一行中间没有分割符逗号
-			collection items terminated by "_"
+			collection items terminated by "_"	# map，struct，Array的分隔符，不能指定多次
 			map keys terminated by ":";
 
 * 类型转换
@@ -203,3 +203,66 @@ Hive操作跟MySQL操作类似。
 	* EXTERNAL 关键字可以让用户创建一个外部表，在建表的同时，指定一个实际数据的路径(LOCATION),Hive创建内部表时，会将数据移动到数据仓库指向的路径；若创建外部表，只记录数据所在的位置，不会对数据的位置做任何改变。在删除表的时候，内部表的数据和元数据会被一起删除，而外部表只删除元数据，不删除数据。
 	* ROW FORMAT DELIMITED [FIELDS TERMINATED BY char] [COLLECTION ITEMS TERMINATED BY char] [MAP KEYS TERMINATED BY char] [LINES TERMINATED BY char]
 	* STORED AS 指定文件存储的类型：SEQUENCEFILE(二进制序列文件)，TEXTFILE(文本)，RCFILE(列式存储格式文件)
+
+* 查看表的信息
+
+	* desc tableName;	# 显示表的列信息以及列的类型信息
+	* desc extended tableName;	# 显示详细信息,报错location等信息
+	* desc formatted tableName;	# 显示更加详细的信息，包括是那种类型的表，比如内部表(MANAGED_TABLE)和外部表
+
+* 内部表和外部表相互转换
+
+	* 将内部表转换成外部表
+
+			alter table person set tblproperties('EXTERNAL'='TRUE'); # 该语句大小写敏感，单引号也敏感
+
+	* 将外部表转换成内部表
+			
+			alter table person set tblproperties('EXTERNAL'='FALSE');
+
+* 分区表
+> 分区表实际上就是对应HDFS文件系统上的独立的文件夹，该文件夹下面是该分区所有的数据文件。hive中的分区就是分目录，把一个大的数据集根据业务需要分割成小的数据集。在查询时通过WHERE字句中的表达式选择查询所需要的分区数据，这样的查询效率会高很多。分区可以创建二级分区，即分区字段有两个。
+
+		create table stu_partition(id int, name string) 
+		partitioned by (month string [, day string])   # 多级分区，按照声明时的顺序，建立多级目录，分区字段不在表字段中
+		row fromat delimited fields terminated by '\t';
+
+* 加载数据到分区表中
+		
+		load data local inpath '/root/partition.sql' into table stu_partition partition(month='201908', day='10');
+
+* 查询分区表数据
+
+		select * from stu_partition where month='201908' [and day = '10'];
+
+* 增加分区: 同时增加多个分区用空格分开
+		
+		alter table add partition(month='201909') partition(month='2019-10');
+
+* 删除分区：同时删除多个分区用逗号分隔，这个要注意，增加和删除使用的语法不同，删除分区相当于删除HDFS上的文件夹，所以数据也会删除
+
+		alter table drop partition(month='201909'), partiton(month='201910');
+
+* 查询分区表有多少分区
+
+		show partitions stu_partition;	# 显示分区数据
+
+* 把数据直接上传到分区目录上，直接查询时查询不到的，因为没有partition的元数据信息，让分区表和数据产生关联的三种方式：
+	1. 执行修复命令：msck repair table dept_partition2;
+	2. 上传数据后添加分区：alter table stu_partition add partition(month='201911');
+	3. 使用load data 加载数据到指定的分区中；
+
+* 修改表名称
+		
+		ALTER TABLE table_name RENAME TO new_table_name
+
+* 更新列信息
+
+		ALTER TABLE table_name CHANGE [COLUMN] col_old_name col_new_name column_type [COMMENT col_comment] [FIRST|AFTER column_name]
+
+* 增加和替换列：注意替换操作时替换所有的字段
+
+		ALTER TABLE table_name ADD|REPLACE COLUMNS (col_name data_type [COMMENT col_comment], ...)
+
+## 第五章 DML数据操作
+
