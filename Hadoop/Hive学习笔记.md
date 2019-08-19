@@ -266,3 +266,82 @@ Hive操作跟MySQL操作类似。
 
 ## 第五章 DML数据操作
 
+###### 数据导入
+
+* 向表中装载数据：可以从本地加载，也可以从hdfs上面加载，不同的是本地加载是复制，hdfs上面加载是移动。
+		
+		load data [local] inpath 'location' [overwrite] into table student [partition (partcol1=val1,…)];
+* 通过查询语句向表中插入数据：使用overwrite关键字时，如果目标是分区表，只会复写指定分区的数据，不会复写整个表的数据
+			
+		// 插入数据
+		insert into [table]  student partition(month='201709') values(1,'wangwu');
+		// 重写表中的数据，数据来源于student表查询的结果
+		insert overwrite table student partition(month='201708')
+             select id, name from student where month='201709';
+
+		// 多插入模式，从同一个表中的不同分区查询数据，可以将from语句写到前面
+		from student
+		insert overwrite table student partition(month='201707')
+		select id, name where month='201709'
+		insert overwrite table student partition(month='201706')
+		select id, name where month='201709';
+
+	* 注意点：使用insert into时，后面的table关键字可以省略，但是使用insert overwrite时，必须加关键字table
+
+* 查询语句中创建表并加载数据：as select
+
+		create table student2 as select * form student;
+
+* 创建表时通过location指定加载数据路径：适合数据已经存在的情况，这里最后建外部表
+
+		create external table if not exists student5(id int, name string)
+		row format delimited fields terminated by '\t'
+		location '/user/hive/warehouse/student5';
+
+* import 数据到hive表中：from中指定的是export导出的数据文件
+
+		import table student2 partition(month='201709') from
+		'/user/hive/warehouse/export/student';
+###### 数据导出
+* 将查询结果导出到本地：使用insert overwrite，不能使用insert into，不加local关键字时，文件导出到hdfs上面。
+
+		insert overwrite [local] directory '/opt/module/datas/export/student'
+        select * from student;
+* 将查询结果格式化导出
+
+		insert overwrite local directory '/opt/module/datas/export/student1'
+        ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' select * from student;
+* hadoop命令导出到本地
+
+		dfs -get /user/hive/warehouse/student/month=201709/000000_0 /opt/module/datas/export/student3.txt;
+* hive shell命令导出
+
+		bin/hive -e 'select * from default.student;' > /opt/module/datas/export/student4.txt;
+* export 导出到hdfs，使用export时，可以将元数据导出，然后可以使用import导入数据
+		export table default.student to '/user/hive/warehouse/export/student';
+###### 清除表中数据
+* 清空表数据只能清空管理表中的数据， 不能清空外部表中的数据
+		truncate table student;
+
+## 第六章 查询
+
+###### 简单查询: 同样支持逻辑云算法：and or not
+		
+		select * from emp;
+		select count(*) from emp;
+		select min(sal) from emp;
+		select max(sal) from emp;
+		select avg(sal) from emp;
+		select sum(sal) from emp;
+		select * from emp where name like '%on';
+		select * from emp where name rlike '[ka]'; # rlike是正则表达式
+		select * from emp where deptno = 10 and sal > 5000;
+
+###### 分组:group之后的条件使用having
+
+		select deptno, avg(sal) from emp group by deptno;
+		select deptno, avg(sal) sal from emp group by deptno having sal > 2000;
+
+###### join操作： 只支持等值join， 不支持非等值join
+		
+		select e.empno, e.ename, d.dname from emp e join dept d on e.dname = d.dname;
