@@ -345,3 +345,27 @@ Hive操作跟MySQL操作类似。
 ###### join操作： 只支持等值join， 不支持非等值join
 		
 		select e.empno, e.ename, d.dname from emp e join dept d on e.dname = d.dname;
+
+###### 排序
+* order by 排序，是全局排序, 使用order by时，不管reduce的个数是多少都只会执行一个reduce，因为order by是全局排序
+		
+		select * from emp order by sal desc;
+		select * from emp order by deptno, sal desc;
+* sort by 排序，是每个MapReduce内部排序: 比如有3个reduce任务，则每个输出文件内部是排序的
+		
+		set mapreduce.job.reduces=3;  	# 设置reduce的个数
+		set mapreduce.job.reduces;		# 查看reduce的个数
+		select * from emp sort by sal desc;
+		// 将查询结果导出到文件夹下面查看排序信息
+		insert overwrite local directory '/root/sort_result' row format delimited fields terminated by '\t' select * from emp sort by sal desc;
+* distribute by 分区排序，类似于MR中的partition，进行分区，结合sort by使用，distribute by必须在sort by之前
+
+		// 先按照部门编号分区，然后按照工资降序排序，需要设置reduce的个数，因为自定义分区后，不设置reduce个数，不会进行分区
+		select * from emp distribute by deptno sort by sal desc;
+
+* cluster by 分区排序，当distribute by 的字段跟sort by的字段相同时，使用cluster by代替, 下面两种写法等价
+
+		select * from emp distribute by deptno sort by deptno desc;
+		select * from emp cluster by deptno;   # cluster by不支持asc，只支持倒序排序
+
+* 总结：order by是全局排序，只有一个reduce任务，sort by是分区后有序，但是sort by没有指定分区字段，分区是随机分散数据到不同的分区，但这里的算法是固定的，对于同一个数据集来说，每次执行的结果都是一样的，防止指定具体分区字段之后产生数据倾斜，因此sort by分区的目的就是分散数据，随机使用某个字段进行分区，防止数据倾斜。distribute by和cluster by都指定了具体的分区字段。
