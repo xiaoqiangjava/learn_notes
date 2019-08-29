@@ -369,3 +369,10 @@ Hive操作跟MySQL操作类似。
 		select * from emp cluster by deptno;   # cluster by不支持asc，只支持倒序排序
 
 * 总结：order by是全局排序，只有一个reduce任务，sort by是分区后有序，但是sort by没有指定分区字段，分区是随机分散数据到不同的分区，但这里的算法是固定的，对于同一个数据集来说，每次执行的结果都是一样的，防止指定具体分区字段之后产生数据倾斜，因此sort by分区的目的就是分散数据，随机使用某个字段进行分区，防止数据倾斜。distribute by和cluster by都指定了具体的分区字段。
+
+* NVL查询函数，NVL(ename, 'default')表示当ename为null时，用default代替，NVL(ename, dname)前面字段为null时，返回后面字段的值
+
+* case column when '值' then '值' else '值' end
+
+		// 统计一个部门的男生和女生的个数
+		select id, sum(case sex when '男' then 1 else 0 end), sum(case sex when '女' then 1 else 0) from emp group by id;
