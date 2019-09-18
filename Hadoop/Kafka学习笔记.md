@@ -63,3 +63,54 @@
 
 * 消费者是以consumer group消费者组的方式工作，由一个或者多个消费者组成一个组，共同消费一个topic。每个分区在同一时间只能由group中的一个消费者读取，但是多个group可以同时消费这个partition。某个消费者读取某个分区，也可以叫做某个消费者是某个分区的拥有者。
 * consumer采用pull（拉）模式从broker中读取数据。
+
+## 第三章 扩展
+
+###### Flume和kafka比较
+
+> Flume
+
+
+* flume适合多个生产者
+* 适合下游数据消费者不多的情况，因为flume的拓扑结构中，如果要把同一份数据发送的不同的下游消费者，就需要保存多分数据副本，比如要将同一份数据发送的不同的系统，需要source选择器的类型为replicating，将数据复制到多个channel，而kafka中只需要不同的消费者组来订阅同一个topic的数据即可。
+* 适合数据安全性不高的场景，因为flume的channel使用最多的是基于memory的channel，安全性不高
+* 适合与hadoop生态对接的操作，比如将数据传输到hdfs，hbase，Flume已经提供了这样的sink，代码量为0.
+
+> Kafka
+
+* 适合下游数据消费者较多的情况
+* 适合数据安全性高的场景，因为kafka中存在副本机制，一个数据保存在不同的broker上面，这里的副本跟flume中的将一份数据保存到不同的channel不同，kafka中消费者消费数据时，都是与分区中的leader交互，副本是一种高可靠手段。
+
+###### 公司中flume和kafka使用场景
+
+* 数据流向：flume-->kafka-->spark/flink，由flume采集日志，将数据传输到kafka，具体的消费者去订阅kafka中的topic即可。
+
+###### kafka和Flume整合
+
+flume-kafka.conf
+
+		# Name the components on this agent
+		a1.sources = r1
+		a1.sinks = k1
+		a1.channels = c1
+
+		# Describe/configure the source
+		a1.sources.r1.type = exec
+		a1.sources.r1.command = tail -F -c +0 /data/soft/apache-hive-1.2.1/logs/hive.log  # -c +0是从头开始读
+
+		# Discribe the kafka sink
+		a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+		a1.sinks.k1.kafka.topic = first
+		a1.sinks.k1.kafka.bootstrap.servers = learn:9092
+		a1.sinks.k1.kafka.flumeBatchSize = 20
+		a1.sinks.k1.kafka.producer.acks = 1
+		a1.sinks.k1.kafka.producer.linger.ms = 1
+
+		# Use a channel which buffers events in memory
+		a1.channels.c1.type = memory
+		a1.channels.c1.capacity = 1000
+		a1.channels.c1.transactionCapacity = 100
+
+		# bind the source and sink with channel
+		a1.sources.r1.channels = c1
+		a1.sinks.k1.channel = c1
