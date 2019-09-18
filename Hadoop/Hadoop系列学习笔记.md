@@ -100,8 +100,8 @@ Reduce有三个主要阶段：shuffle，sort and reduce
 
 * 指定最终输出数据的KV类型，这里的类型不一定是Reducer的KV类型，因为MapReduce程序可以没有Reducer任务。
 
-		job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(LongWritable.class);
+		job.setOutputKClass(Text.class);
+        job.setOutputValeyueClass(LongWritable.class);
 
 * 指定Job的输入以及输出结果所在目录
 
