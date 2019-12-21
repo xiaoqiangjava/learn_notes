@@ -16,7 +16,8 @@
 
 3. bin/spark-submit --class org.apache.spark.examples.SparkPi \  # 指定程序运行的主类
 					--master yarn     # spark://host:port, mesos://host:port, yarn, or local.
-					--deploy-mode cluster 
+					--deploy-mode cluster   # client、cluster默认是client模式，可以直接在提交作业的时候查看日志，在提交端生成
+											的JVM会一直等待所有的计算过程全部完成才退出，有两个功能：一个是提交，一个时监控jar运行；cluster模式在提交端生成的JVM在提交jar包后退出，他只有一个提交功能，然后在某一个Worker上面会生成一个Driver的JVM，该JVM监控jar的运行，等待所有的代码执行完毕才退出。
 					--total-executor-cores 2
 					--executor-memory 512m
 					<app-jar>         # 指定程序运行的jar包
