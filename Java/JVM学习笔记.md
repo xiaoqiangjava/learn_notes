@@ -43,7 +43,7 @@
 				StackLocalParameter s = new StackLocalParameter();
 				s = null;
 			}
-			
+		
 	* 方法区(元空间)中类静态属性引用的对象: meta是本地变量表引用的对象，即为GC Root，当meta置空时，name1会被GC回收。gc是静态属性，也是GC Root，name2与GC Root任然保持着连接，所以不会被GC回收
 
 			public class MetaspaceGC{
@@ -109,3 +109,18 @@
 * volatile底层主要是通过汇编lock前缀指令，它会锁定这块内存区域的缓存并回写到主内存，此操作被称为“缓存锁定”，MESI缓存一致性协议会阻止同时修改被两个以上处理器缓存的内存区域数据。一个处理器的缓存值通过总线回写到内存会导致其他处理器相应的缓存失效。
 * volatile关键字只保证可见性和顺序性，不保证原子性，比如num++操作，10个线程同时执行num++，变量num是volatile修饰的，同样每个线程中都保存一个num的副本，当线程A执行完num++操作，还需要回写到主内存，如果此时线程B也执行了num++操作，将B线程工作内存中的num值+1，在回写时由于线程A已经回写了num++的结果，导致B线程中num++的结果失效，B线程将重新读取主内存中的数据，这样B线程执行的num++操作相当于白做了，因此会导致数据不一致性。10个线程分别执行volatile修饰的num++操作1000次，最后的结果是小于10000的值。
 * 保证原子性操作需要Synchronized锁机制
+
+## 第五章 日常记录
+
+#### 查看默认的JVM垃圾回收器
+
+java -XX:+PrintCommandLineFlags -version  通过命令查看参数值，在下表中找对应的垃圾回收器
+
+![img](https://imgconvert.csdnimg.cn/aHR0cHM6Ly9pbWFnZXMyMDE4LmNuYmxvZ3MuY29tL2Jsb2cvNTE5MTI2LzIwMTgwNi81MTkxMjYtMjAxODA2MjMxNTQ2MzUwNzYtOTUzMDc2Nzc2LnBuZw?x-oss-process=image/format,png)
+
+垃圾回收器匹配关系：
+
+![image-20201202181305239](/Users/easonlzhang/Library/Application Support/typora-user-images/image-20201202181305239.png)
+
+
+
