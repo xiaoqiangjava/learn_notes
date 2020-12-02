@@ -120,7 +120,9 @@ java -XX:+PrintCommandLineFlags -version  通过命令查看参数值，在下�
 
 垃圾回收器匹配关系：
 
-![image-20201202181305239](/Users/easonlzhang/Library/Application Support/typora-user-images/image-20201202181305239.png)
+![img](https://pic.yupoo.com/crowhawk/56a02e55/3b3c42d2.jpg)
+
+
 
 
 
